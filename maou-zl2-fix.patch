@@ -1,0 +1,586 @@
+diff --git a/ZalithLauncher/gradle.properties b/ZalithLauncher/gradle.properties
+index 12caae5..c0dea68 100644
+--- a/ZalithLauncher/gradle.properties
++++ b/ZalithLauncher/gradle.properties
+@@ -15,5 +15,5 @@ default_store_password=vh#nn%N(#eNjwfA78-77s6&f-cdd(@-7eana-e%!nhj%))!@c
+ default_key_password=sfv72ghSSNQaadf99-Q69!2
+ 
+ # launcher version
+-launcher_version_code=200088
+-launcher_version_name=2.8.8
+\ No newline at end of file
++launcher_version_code=200089
++launcher_version_name=2.8.9
+\ No newline at end of file
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/settings/AboutInfoScreen.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/settings/AboutInfoScreen.kt
+index 32eab04..9e4e722 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/settings/AboutInfoScreen.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/settings/AboutInfoScreen.kt
+@@ -124,6 +124,19 @@ fun AboutInfoScreen(
+                             }
+                         )
+ 
++                        ButtonIconItem(
++                            icon = painterResource(R.drawable.img_avatar_maou),
++                            title = "Maou",
++                            text = stringResource(R.string.about_maou_author_text, BuildKeys.LAUNCHER_NAME),
++                            button = {
++                                Button(
++                                    onClick = { openLink("https://github.com/maouelfi-dot") }
++                                ) {
++                                    Text(text = stringResource(R.string.about_maou_author_github))
++                                }
++                            }
++                        )
++
+                         ButtonIconItem(
+                             icon = painterResource(R.drawable.img_avatar_movtery),
+                             title = stringResource(R.string.about_launcher_author_movtery_title),
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/settings/layouts/_SettingsCard.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/settings/layouts/_SettingsCard.kt
+index 09b874f..e024b13 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/settings/layouts/_SettingsCard.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/settings/layouts/_SettingsCard.kt
+@@ -154,8 +154,8 @@ enum class CardPosition {
+ @Composable
+ fun rememberSettingsCardShape(
+     position: CardPosition,
+-    outerShape: Dp = 28.dp,
+-    innerShape: Dp = 4.dp
++    outerShape: Dp = 20.dp,
++    innerShape: Dp = 6.dp
+ ): Shape {
+     return remember(position, outerShape, innerShape) {
+         when (position) {
+@@ -205,8 +205,8 @@ fun rememberSettingsCardShape(
+ fun SettingsCard(
+     modifier: Modifier = Modifier,
+     position: CardPosition,
+-    outerShape: Dp = 28.dp,
+-    innerShape: Dp = 4.dp,
++    outerShape: Dp = 20.dp,
++    innerShape: Dp = 6.dp,
+     content: @Composable ColumnScope.() -> Unit
+ ) {
+     val shape = rememberSettingsCardShape(position, outerShape, innerShape)
+@@ -214,6 +214,7 @@ fun SettingsCard(
+     BackgroundCard(
+         modifier = modifier,
+         shape = shape,
++        blur = 0, // [Maou] tanpa blur kaca per kartu: jauh lebih ringan di HP lemah
+         content = content
+     )
+ }
+@@ -222,8 +223,8 @@ fun SettingsCard(
+ fun SettingsCard(
+     modifier: Modifier = Modifier,
+     position: CardPosition,
+-    outerShape: Dp = 28.dp,
+-    innerShape: Dp = 4.dp,
++    outerShape: Dp = 20.dp,
++    innerShape: Dp = 6.dp,
+     onClick: () -> Unit,
+     enabled: Boolean = true,
+     content: @Composable ColumnScope.() -> Unit
+@@ -233,6 +234,7 @@ fun SettingsCard(
+     BackgroundCard(
+         modifier = modifier,
+         shape = shape,
++        blur = 0, // [Maou] tanpa blur kaca per kartu: jauh lebih ringan di HP lemah
+         onClick = onClick,
+         enabled = enabled,
+         content = content
+@@ -247,9 +249,9 @@ fun SettingsCard(
+     summary: String? = null,
+     titleStyle: TextStyle = MaterialTheme.typography.titleSmall,
+     summaryStyle: TextStyle = MaterialTheme.typography.labelSmall,
+-    outerShape: Dp = 28.dp,
+-    innerShape: Dp = 4.dp,
+-    innerPadding: PaddingValues = PaddingValues(all = 16.dp),
++    outerShape: Dp = 20.dp,
++    innerShape: Dp = 6.dp,
++    innerPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+     onClick: () -> Unit,
+     trailingIcon: (@Composable RowScope.() -> Unit)? = null,
+     enabled: Boolean = true
+@@ -259,6 +261,7 @@ fun SettingsCard(
+     BackgroundCard(
+         modifier = modifier,
+         shape = shape,
++        blur = 0, // [Maou] tanpa blur kaca per kartu: jauh lebih ringan di HP lemah
+         onClick = onClick,
+         enabled = enabled
+     ) {
+@@ -292,7 +295,7 @@ fun SettingsCardColumn(
+ ) {
+     Column(
+         modifier = modifier,
+-        verticalArrangement = Arrangement.spacedBy(2.dp),
++        verticalArrangement = Arrangement.spacedBy(3.dp),
+         content = content
+     )
+ }
+\ No newline at end of file
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/MaouSplashElements.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/MaouSplashElements.kt
+new file mode 100644
+index 0000000..66e3d3e
+--- /dev/null
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/MaouSplashElements.kt
+@@ -0,0 +1,117 @@
++package com.movtery.zalithlauncher.ui.screens.splash
++
++import androidx.compose.animation.core.FastOutSlowInEasing
++import androidx.compose.animation.core.RepeatMode
++import androidx.compose.animation.core.animateFloat
++import androidx.compose.animation.core.infiniteRepeatable
++import androidx.compose.animation.core.rememberInfiniteTransition
++import androidx.compose.animation.core.tween
++import androidx.compose.foundation.Image
++import androidx.compose.foundation.background
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.shape.RoundedCornerShape
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Surface
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.getValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.clip
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.graphics.graphicsLayer
++import androidx.compose.ui.res.painterResource
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.unit.Dp
++import androidx.compose.ui.unit.dp
++import com.movtery.zalithlauncher.BuildKeys
++import com.movtery.zalithlauncher.R
++
++/** Logo Maou dengan denyut halus (satu animasi ringan, tanpa efek berat). */
++@Composable
++fun MaouLogoPulse(
++    modifier: Modifier = Modifier,
++    size: Dp = 72.dp
++) {
++    val transition = rememberInfiniteTransition(label = "maou_logo_pulse")
++    val scale by transition.animateFloat(
++        initialValue = 0.94f,
++        targetValue = 1.06f,
++        animationSpec = infiniteRepeatable(
++            animation = tween(durationMillis = 1400, easing = FastOutSlowInEasing),
++            repeatMode = RepeatMode.Reverse
++        ),
++        label = "maou_logo_scale"
++    )
++    Image(
++        modifier = modifier
++            .size(size)
++            .graphicsLayer {
++                scaleX = scale
++                scaleY = scale
++            },
++        painter = painterResource(R.drawable.ic_maou_logo),
++        contentDescription = null
++    )
++}
++
++/** Kartu sambutan di halaman welcome: logo, nama, slogan, dan tiga lencana. */
++@Composable
++fun MaouWelcomeHero(modifier: Modifier = Modifier) {
++    val scheme = MaterialTheme.colorScheme
++    Box(
++        modifier = modifier
++            .clip(RoundedCornerShape(28.dp))
++            .background(
++                Brush.verticalGradient(
++                    listOf(scheme.primaryContainer, scheme.surfaceVariant)
++                )
++            ),
++        contentAlignment = Alignment.Center
++    ) {
++        Column(
++            modifier = Modifier.padding(24.dp),
++            horizontalAlignment = Alignment.CenterHorizontally,
++            verticalArrangement = Arrangement.spacedBy(14.dp)
++        ) {
++            MaouLogoPulse(size = 96.dp)
++            Text(
++                text = BuildKeys.LAUNCHER_NAME,
++                style = MaterialTheme.typography.headlineMedium,
++                fontWeight = FontWeight.Bold,
++                color = scheme.onPrimaryContainer
++            )
++            Text(
++                text = stringResource(R.string.maou_welcome_tagline),
++                style = MaterialTheme.typography.bodyMedium,
++                textAlign = TextAlign.Center,
++                color = scheme.onPrimaryContainer.copy(alpha = 0.8f)
++            )
++            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
++                listOf(
++                    R.string.maou_chip_light,
++                    R.string.maou_chip_fast,
++                    R.string.maou_chip_stable
++                ).forEach { res ->
++                    Surface(
++                        shape = RoundedCornerShape(50),
++                        color = scheme.surface.copy(alpha = 0.6f)
++                    ) {
++                        Text(
++                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
++                            text = stringResource(res),
++                            style = MaterialTheme.typography.labelMedium
++                        )
++                    }
++                }
++            }
++        }
++    }
++}
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/SplashScreen.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/SplashScreen.kt
+index d27da4e..5b61425 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/SplashScreen.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/SplashScreen.kt
+@@ -18,19 +18,22 @@
+ 
+ package com.movtery.zalithlauncher.ui.screens.splash
+ 
+-import androidx.compose.foundation.Image
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+ import androidx.compose.foundation.layout.Column
+ import androidx.compose.foundation.layout.fillMaxSize
+-import androidx.compose.foundation.layout.size
+ import androidx.compose.foundation.layout.width
+ import androidx.compose.material3.LinearWavyProgressIndicator
++import androidx.compose.foundation.background
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.Text
++import androidx.compose.ui.graphics.Brush
++import androidx.compose.ui.text.font.FontWeight
++import com.movtery.zalithlauncher.BuildKeys
+ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.ui.Alignment
+ import androidx.compose.ui.Modifier
+-import androidx.compose.ui.res.painterResource
+ import androidx.compose.ui.res.stringResource
+ import androidx.compose.ui.unit.dp
+ import androidx.navigation3.runtime.entryProvider
+@@ -136,22 +139,36 @@ private fun LoadingScreen(
+         Box(
+             modifier = Modifier
+                 .fillMaxSize()
++                .background(
++                    Brush.verticalGradient(
++                        listOf(
++                            MaterialTheme.colorScheme.surface,
++                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
++                        )
++                    )
++                )
+                 .animated(ctx, from = AnimatedDirection.Bottom),
+             contentAlignment = Alignment.Center
+         ) {
+             Column(
+                 horizontalAlignment = Alignment.CenterHorizontally,
+-                verticalArrangement = Arrangement.spacedBy(16.dp)
++                verticalArrangement = Arrangement.spacedBy(14.dp)
+             ) {
+-                Image(
+-                    modifier = Modifier.size(58.dp),
+-                    painter = painterResource(R.drawable.img_launcher),
+-                    contentDescription = stringResource(R.string.generic_loading)
++                MaouLogoPulse(size = 80.dp)
++                Text(
++                    text = BuildKeys.LAUNCHER_NAME,
++                    style = MaterialTheme.typography.titleLarge,
++                    fontWeight = FontWeight.Bold
+                 )
+                 LinearWavyProgressIndicator(
+-                    modifier = Modifier.width(128.dp),
++                    modifier = Modifier.width(160.dp),
+                     wavelength = 32.dp
+                 )
++                Text(
++                    text = stringResource(R.string.maou_loading_text),
++                    style = MaterialTheme.typography.labelMedium,
++                    color = MaterialTheme.colorScheme.onSurfaceVariant
++                )
+             }
+         }
+     }
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/WelcomeScreen.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/WelcomeScreen.kt
+index 20bb46b..06ca7cc 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/WelcomeScreen.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/splash/WelcomeScreen.kt
+@@ -163,8 +163,7 @@ fun WelcomeScreen(
+                         horizontalArrangement = Arrangement.spacedBy(20.dp)
+                     ) {
+                         // 终端卡片布局
+-                        WelcomeTerminal(
+-                            isVisible = isVisible,
++                        MaouWelcomeHero(
+                             modifier = Modifier
+                                 .width(terminalWidth)
+                                 .fillMaxHeight()
+diff --git a/ZalithLauncher/src/main/res/drawable/ic_maou_logo.xml b/ZalithLauncher/src/main/res/drawable/ic_maou_logo.xml
+new file mode 100644
+index 0000000..da31326
+--- /dev/null
++++ b/ZalithLauncher/src/main/res/drawable/ic_maou_logo.xml
+@@ -0,0 +1,22 @@
++<?xml version="1.0" encoding="utf-8"?>
++<!-- Logo Maou Launcher (warna asli) untuk tombol menu dan efek sponsor. -->
++<vector xmlns:android="http://schemas.android.com/apk/res/android" xmlns:aapt="http://schemas.android.com/aapt"
++    android:width="108dp"
++    android:height="108dp"
++    android:viewportWidth="108"
++    android:viewportHeight="108">
++  <group android:pivotX="54" android:pivotY="54" android:scaleX="0.92" android:scaleY="0.92">
++    <path android:pathData="M48.80,24.00 Q54.00,21.00 59.20,24.00 L77.38,34.50 Q82.58,37.50 82.58,43.50 L82.58,64.50 Q82.58,70.50 77.38,73.50 L59.20,84.00 Q54.00,87.00 48.80,84.00 L30.62,73.50 Q25.42,70.50 25.42,64.50 L25.42,43.50 Q25.42,37.50 30.62,34.50 Z">
++      <aapt:attr name="android:fillColor">
++        <gradient android:type="linear" android:startX="54" android:startY="21" android:endX="54" android:endY="87">
++          <item android:offset="0" android:color="#FFB79CFF"/>
++          <item android:offset="0.5" android:color="#FF7C3AED"/>
++          <item android:offset="1" android:color="#FF3B1590"/>
++        </gradient>
++      </aapt:attr>
++    </path>
++    <path android:fillColor="#24FFFFFF" android:pathData="M54.00,29.10 L76.86,40.80 L54,54 L31.14,40.80 Z"/>
++    <path android:strokeColor="#8CFFFFFF" android:strokeWidth="1.6" android:pathData="M49.67,28.50 Q54.00,26.00 58.33,28.50 L73.92,37.50 Q78.25,40.00 78.25,45.00 L78.25,63.00 Q78.25,68.00 73.92,70.50 L58.33,79.50 Q54.00,82.00 49.67,79.50 L34.08,70.50 Q29.75,68.00 29.75,63.00 L29.75,45.00 Q29.75,40.00 34.08,37.50 Z"/>
++    <path android:fillColor="#FFFFFFFF" android:pathData="M36.80,67.76 L36.80,39.38 L44.54,39.38 L54.00,53.14 L63.46,39.38 L71.20,39.38 L71.20,67.76 L63.46,67.76 L63.46,52.28 L56.58,62.17 L51.42,62.17 L44.54,52.28 L44.54,67.76 Z"/>
++  </group>
++</vector>
+diff --git a/ZalithLauncher/src/main/res/drawable/img_avatar_maou.webp b/ZalithLauncher/src/main/res/drawable/img_avatar_maou.webp
+new file mode 100644
+index 0000000000000000000000000000000000000000..07e87f247495239922c5b5caefdd53119481e739
+GIT binary patch
+literal 10354
+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
+Q&E(6RH|Q`VhkYOb0L+q$od5s;
+
+literal 0
+HcmV?d00001
+
+diff --git a/ZalithLauncher/src/main/res/values/strings.xml b/ZalithLauncher/src/main/res/values/strings.xml
+index c2a144c..d9b1b63 100644
+--- a/ZalithLauncher/src/main/res/values/strings.xml
++++ b/ZalithLauncher/src/main/res/values/strings.xml
+@@ -3072,4 +3072,12 @@
+     <string name="guide_joystick_events_events_text1">The triggerable events are the same as those of regular buttons, so you have plenty of freedom here</string>
+     <!-- Closing line of the guide card about editing actual key bindings in the Key section -->
+     <string name="guide_joystick_events_events_text2">If you only want to control the game, just edit the actual key bindings in the \"Key\" section</string>
++    <!-- Maou Launcher: loading & welcome -->
++    <string name="maou_welcome_tagline">Launcher Minecraft yang ringan untuk HP kentang</string>
++    <string name="maou_chip_light">Ringan</string>
++    <string name="maou_chip_fast">Cepat</string>
++    <string name="maou_chip_stable">Stabil</string>
++    <string name="maou_loading_text">Menyiapkan launcher…</string>
++    <string name="about_maou_author_text">Pembuat dan pengembang %1$s</string>
++    <string name="about_maou_author_github">GitHub</string>
+ </resources>

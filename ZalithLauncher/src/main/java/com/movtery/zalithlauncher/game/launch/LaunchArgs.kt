@@ -217,6 +217,8 @@ class LaunchArgs(
 
         //MioLibPatcher 需作为 JVM 选项注册在 cacio agent 之后、-cp 之前
         argsList.add("-javaagent:${LibPath.MIO_LIB_PATCHER.absolutePath}")
+        // [Zalith Mod] diagnostic: prints main/render thread stacks at 90s and 200s (helps with "stuck" reports)
+        if (LibPath.STALL_DUMP.isFile) argsList.add("-javaagent:${LibPath.STALL_DUMP.absolutePath}")
 
         val configFilePath = version.getVersionPath().child("log4j2.xml")
         if (!configFilePath.exists()) {

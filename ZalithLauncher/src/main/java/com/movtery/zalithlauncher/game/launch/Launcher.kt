@@ -340,9 +340,46 @@ abstract class Launcher(
         args.purgeArg("-XX:ActiveProcessorCount")
 
         //Add automatically generated args
-        val ramAllocationString = ramAllocation.toString()
-        args.add("-Xms${ramAllocationString}M")
+        // [Zalith Mod] Keep RAM for Android + native memory (GL, audio, mod natives). A heap that eats the
+        // whole phone RAM makes Android kill the game silently (log just stops), mostly on 2GB phones.
+        val deviceMb = (com.movtery.zalithlauncher.utils.platform.getTotalMemory(GlobalContext.applicationContext) / (1024 * 1024)).toInt()
+        val reserveMb = if (deviceMb < 3072) 1000 else 900
+        val cappedRam = if (deviceMb > 0) ramAllocation.coerceAtMost(maxOf(640, deviceMb - reserveMb)) else ramAllocation
+        val ramAllocationString = cappedRam.toString()
+        args.add("-Xms${if (deviceMb in 1..3071) minOf(cappedRam, 384) else cappedRam}M") // Maou RAM
         args.add("-Xmx${ramAllocationString}M")
+
+        // [Zalith Mod] Faster start: skip bytecode verification, tolerate flags this JRE does not know.
+        args.add("-XX:+IgnoreUnrecognizedVMOptions")
+        args.add("-XX:-BytecodeVerificationRemote")
+        args.add("-XX:-BytecodeVerificationLocal")
+        // Dynamic AppCDS archive (JDK 19+): 2nd launch loads classes from a ready archive; silently ignored if unusable.
+        // Skipped when storage is tight: the archive can take tens of MB.
+        if (false && PathManager.DIR_CACHE.usableSpace > 2L * 1024 * 1024 * 1024) {
+            runCatching {
+                val cdsDir = File(PathManager.DIR_CACHE, "cds").apply { mkdirs() }
+                // keep only the archive of the Java version in use
+                cdsDir.listFiles { f -> f.name.endsWith(".jsa") && f.name != "game-${runtime.javaVersion}.jsa" }?.forEach { it.delete() }
+                args.add("-XX:+AutoCreateSharedArchive")
+                args.add("-XX:SharedArchiveFile=${File(cdsDir, "game-${runtime.javaVersion}.jsa").absolutePath}")
+                args.add("-Xlog:cds=off")
+                args.add("-Xlog:cds+dynamic=off")
+            }
+        }
+        // Low-RAM phones: lightest GC, smaller code cache, fixed young generation (avoids 1-3 s full-GC freezes)
+        if (deviceMb in 1..3071 && args.none { it.startsWith("-XX:+Use") && it.endsWith("GC") }) {
+            args.add("-XX:+UseSerialGC")
+            args.add("-XX:ReservedCodeCacheSize=64m")
+            args.add("-Xmn${minOf(160, maxOf(96, cappedRam / 4))}M")
+            args.add("-XX:-UsePerfData")
+            args.add("-XX:CICompilerCount=2")
+            // Maou RAM: JIT C1 saja (hemat RAM + CPU, kurangi stutter dari kompilasi C2), heap menyusut cepat
+            args.add("-XX:TieredStopAtLevel=1")
+            args.add("-XX:MinHeapFreeRatio=10")
+            args.add("-XX:MaxHeapFreeRatio=30")
+            args.add("-XX:ReservedCodeCacheSize=48m")
+            args.add("-XX:+UseCompressedOops")
+        }
 
         args.add("-Dorg.lwjgl.openal.libname=${PathManager.DIR_NATIVE_LIB}/libopenal.so")
 

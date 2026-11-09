@@ -96,40 +96,5 @@ object HomeCards {
     val userCardTypes: List<CardType> = listOf(versionCardType, serverCardType)
 
     /** 系统卡片（不可变更） */
-    fun systemCards(): List<SystemCard> = buildList {
-        if (BuildConfig.DEBUG) {
-            add(debugWarningCard())
-        }
-    }
-
-    /**
-     * debug版本关不掉的警告，防止有人把测试版当正式版用 XD
-     */
-    private fun debugWarningCard() = SystemCard(id = "system_debug_warning") {
-        BackgroundCard(
-            modifier = Modifier.fillMaxWidth(),
-            shape = MaterialTheme.shapes.extraLarge
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Text(
-                    text = stringResource(R.string.generic_warning),
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = stringResource(R.string.launcher_version_debug_warning, BuildKeys.LAUNCHER_NAME),
-                    style = MaterialTheme.typography.bodyMedium
-                )
-                Text(
-                    modifier = Modifier
-                        .alpha(0.8f)
-                        .align(Alignment.End),
-                    text = stringResource(R.string.launcher_version_debug_warning_cant_close),
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-        }
-    }
+    fun systemCards(): List<SystemCard> = emptyList() // [Maou] kartu peringatan debug dihapus
 }

@@ -641,6 +641,8 @@ private fun BackgroundImage(
 
     val imageLoader = remember(refreshTrigger) {
         ImageLoader.Builder(context)
+            // [Maou] satu gambar lokal saja: cache memori bawaan Coil (25% RAM) tidak perlu dan boros
+            .memoryCachePolicy(coil3.request.CachePolicy.DISABLED)
             .components { add(GifDecoder.Factory()) }
             .build()
     }

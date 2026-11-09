@@ -18,6 +18,7 @@
 
 package com.movtery.zalithlauncher.ui.components
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.drag
@@ -60,6 +61,7 @@ fun FloatingBall(
     color: Color = Color.Black.copy(alpha = 0.25f),
     contentColor: Color = Color.White.copy(alpha = 0.95f),
     shape: Shape = MaterialTheme.shapes.medium,
+    border: BorderStroke? = null,
     content: @Composable () -> Unit
 ) {
     var ballSize by remember { mutableStateOf(IntSize.Zero) }
@@ -179,7 +181,8 @@ fun FloatingBall(
                 }.then(modifier),
             color = color,
             contentColor = contentColor,
-            shape = shape
+            shape = shape,
+            border = border
         ) {
             content()
         }

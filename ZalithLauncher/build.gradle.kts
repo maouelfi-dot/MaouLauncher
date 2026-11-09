@@ -129,8 +129,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = zalithPackageName
-        applicationIdSuffix = ".v2"
+        // [Maou] ID aplikasi sendiri (namespace/package kode tetap, supaya tidak ada import yang rusak)
+        applicationId = "com.maou.launcher"
         minSdk = 26
         targetSdk = 34
         versionCode = launcherVersionCode
@@ -142,7 +142,12 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("releaseBuild")
+            // [Maou] kunci rilis asli tidak ada di repo -> pakai kunci debug supaya `assembleRelease` tetap jadi APK terpasang
+            signingConfig = if (getKeyFromLocal("STORE_PASSWORD", ".store_password.txt").isNotEmpty()) {
+                signingConfigs.getByName("releaseBuild")
+            } else {
+                signingConfigs.getByName("debugBuild")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

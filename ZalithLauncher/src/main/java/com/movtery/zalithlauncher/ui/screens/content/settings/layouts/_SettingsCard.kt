@@ -154,8 +154,8 @@ enum class CardPosition {
 @Composable
 fun rememberSettingsCardShape(
     position: CardPosition,
-    outerShape: Dp = 28.dp,
-    innerShape: Dp = 4.dp
+    outerShape: Dp = 20.dp,
+    innerShape: Dp = 6.dp
 ): Shape {
     return remember(position, outerShape, innerShape) {
         when (position) {
@@ -205,8 +205,8 @@ fun rememberSettingsCardShape(
 fun SettingsCard(
     modifier: Modifier = Modifier,
     position: CardPosition,
-    outerShape: Dp = 28.dp,
-    innerShape: Dp = 4.dp,
+    outerShape: Dp = 20.dp,
+    innerShape: Dp = 6.dp,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = rememberSettingsCardShape(position, outerShape, innerShape)
@@ -214,6 +214,7 @@ fun SettingsCard(
     BackgroundCard(
         modifier = modifier,
         shape = shape,
+        blur = 0, // [Maou] tanpa blur kaca per kartu: jauh lebih ringan di HP lemah
         content = content
     )
 }
@@ -222,8 +223,8 @@ fun SettingsCard(
 fun SettingsCard(
     modifier: Modifier = Modifier,
     position: CardPosition,
-    outerShape: Dp = 28.dp,
-    innerShape: Dp = 4.dp,
+    outerShape: Dp = 20.dp,
+    innerShape: Dp = 6.dp,
     onClick: () -> Unit,
     enabled: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
@@ -233,6 +234,7 @@ fun SettingsCard(
     BackgroundCard(
         modifier = modifier,
         shape = shape,
+        blur = 0, // [Maou] tanpa blur kaca per kartu: jauh lebih ringan di HP lemah
         onClick = onClick,
         enabled = enabled,
         content = content
@@ -247,9 +249,9 @@ fun SettingsCard(
     summary: String? = null,
     titleStyle: TextStyle = MaterialTheme.typography.titleSmall,
     summaryStyle: TextStyle = MaterialTheme.typography.labelSmall,
-    outerShape: Dp = 28.dp,
-    innerShape: Dp = 4.dp,
-    innerPadding: PaddingValues = PaddingValues(all = 16.dp),
+    outerShape: Dp = 20.dp,
+    innerShape: Dp = 6.dp,
+    innerPadding: PaddingValues = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
     onClick: () -> Unit,
     trailingIcon: (@Composable RowScope.() -> Unit)? = null,
     enabled: Boolean = true
@@ -259,6 +261,7 @@ fun SettingsCard(
     BackgroundCard(
         modifier = modifier,
         shape = shape,
+        blur = 0, // [Maou] tanpa blur kaca per kartu: jauh lebih ringan di HP lemah
         onClick = onClick,
         enabled = enabled
     ) {
@@ -292,7 +295,7 @@ fun SettingsCardColumn(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
         content = content
     )
 }

@@ -206,7 +206,7 @@ private fun EntrySubtitle(
     }
 
     Row(
-        modifier = modifier.basicMarquee(Int.MAX_VALUE),
+        modifier = modifier.basicMarquee(iterations = 1),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {

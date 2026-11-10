@@ -221,7 +221,7 @@ private class ModsManageViewModel(
     /** 作为标记，记录哪些模组已被加载 */
     private val modsToLoad = mutableListOf<RemoteMod>()
     private val loadQueue = LinkedList<Pair<RemoteMod, Boolean>>()
-    private val semaphore = Semaphore(8) //一次最多允许同时加载8个模组
+    private val semaphore = Semaphore(3) //一次最多允许同时加载8个模组
     private var initialQueueSize = 0
     private val queueMutex = Mutex()
 
@@ -1174,7 +1174,7 @@ private fun ModItemLayout(
         else (-1).dp
     )
 
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }
@@ -1244,7 +1244,7 @@ private fun ModItemLayout(
                             Text(
                                 modifier = Modifier
                                     .alpha(titleAlpha)
-                                    .basicMarquee(iterations = Int.MAX_VALUE),
+                                    .basicMarquee(iterations = 1),
                                 text = localMod.file.name,
                                 style = MaterialTheme.typography.titleSmall,
                                 textDecoration = titleDecoration,
@@ -1274,7 +1274,7 @@ private fun ModItemLayout(
                                     modifier = Modifier
                                         .alpha(titleAlpha)
                                         .weight(1f, fill = false)
-                                        .basicMarquee(iterations = Int.MAX_VALUE)
+                                        .basicMarquee(iterations = 1)
                                         .animateContentSize(),
                                     text = displayTitle,
                                     style = MaterialTheme.typography.titleSmall,
@@ -1286,7 +1286,7 @@ private fun ModItemLayout(
                                 Row(
                                     modifier = Modifier
                                         .padding(start = 8.dp)
-                                        .basicMarquee(iterations = Int.MAX_VALUE)
+                                        .basicMarquee(iterations = 1)
                                         .animateContentSize(),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
@@ -1310,7 +1310,7 @@ private fun ModItemLayout(
                             Text(
                                 modifier = Modifier
                                     .alpha(0.7f)
-                                    .basicMarquee(iterations = Int.MAX_VALUE),
+                                    .basicMarquee(iterations = 1),
                                 text = stringResource(R.string.generic_file_name, localMod.file.name),
                                 style = MaterialTheme.typography.bodySmall,
                                 maxLines = 1
@@ -1439,7 +1439,7 @@ private fun WarningItem(
     shape: Shape = MaterialTheme.shapes.large,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }

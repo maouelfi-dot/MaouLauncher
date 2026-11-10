@@ -4,6 +4,16 @@ on:
   release:
     types:
       - published
+  # [Maou] push a tag like v2.9.0 (or run manually) and the APKs are built and uploaded to a GitHub Release automatically
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag, e.g. v2.9.0'
+        required: true
+        default: 'v2.9.0'
 
 permissions:
   contents: write
@@ -50,7 +60,7 @@ jobs:
               arm64) abi="arm64-v8a" ;;
               *) abi="$arch" ;;
             esac
-            cp "$dir/mapping.txt" "./mappings/ZalithLauncher-mapping-${version}${abi:+-$abi}.txt"
+            cp "$dir/mapping.txt" "./mappings/MaouLauncher-mapping-${version}${abi:+-$abi}.txt"
           done
 
           echo "Found $(ls ./mappings/ | wc -l) mapping file(s)"
@@ -58,7 +68,9 @@ jobs:
       - name: Upload To Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: ${{ github.event.release.tag_name }}
+          tag_name: ${{ github.event.release.tag_name || github.event.inputs.tag || github.ref_name }}
+          name: Maou Launcher ${{ github.event.release.tag_name || github.event.inputs.tag || github.ref_name }}
+          generate_release_notes: true
           files: |
             ./apks/*.apk
             ./mappings/*.txt

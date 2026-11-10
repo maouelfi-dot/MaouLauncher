@@ -439,7 +439,7 @@ BaseScreen(
                                 Row(
                                     modifier = Modifier
                                         .weight(1f)
-                                        .basicMarquee(Int.MAX_VALUE),
+                                        .basicMarquee(iterations = 1),
                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     codes.forEach { code ->

@@ -3072,4 +3072,19 @@
     <string name="guide_joystick_events_events_text1">The triggerable events are the same as those of regular buttons, so you have plenty of freedom here</string>
     <!-- Closing line of the guide card about editing actual key bindings in the Key section -->
     <string name="guide_joystick_events_events_text2">If you only want to control the game, just edit the actual key bindings in the \"Key\" section</string>
+    <!-- Maou Launcher: mabar LAN lewat hotspot -->
+    <string name="maou_lan_title">Mabar via Hotspot (2 HP)</string>
+    <string name="maou_lan_summary">Main bareng tanpa kuota: cukup satu HP jadi hotspot</string>
+    <string name="maou_lan_no_ip">Alamat IP belum terdeteksi. Nyalakan hotspot (HP host) atau sambungkan Wi-Fi (HP teman), lalu buka lagi.</string>
+    <string name="maou_lan_dialog_text">IP HP ini:\n%1$s\n\nHP Host: nyalakan Hotspot. Alamat hotspot biasanya yang berawalan 192.168 atau 172 (nama ap0/swlan0/wlan1).\n\nHP Teman: sambungkan Wi-Fi ke hotspot Host.\n\nHost: masuk dunia, tekan Esc, Open to LAN, Start LAN World. Catat nomor port di chat.\n\nTeman: Multiplayer, Direct Connection, ketik IP-Host:port (contoh 192.168.43.1:51234).\n\nDaftar LAN otomatis sering tidak muncul di hotspot, jadi pakai Direct Connection.\n\nBeda versi game: pasang mod ViaFabric (Fabric) di HP Host dan/atau Teman, lalu pakai ViaBackwards bila Host lebih lama dari Teman. Hanya cocok untuk dunia hampir vanilla; mod yang menambah blok atau item harus sama di kedua HP.</string>
+    <!-- Maou Launcher: loading & welcome -->
+    <string name="maou_welcome_tagline">Launcher Minecraft yang ringan untuk HP kentang</string>
+    <string name="maou_chip_light">Ringan</string>
+    <string name="maou_chip_fast">Cepat</string>
+    <string name="maou_chip_stable">Stabil</string>
+    <string name="maou_loading_text">Menyiapkan launcher…</string>
+    <string name="about_maou_author_text">Pembuat dan pengembang %1$s</string>
+    <string name="about_maou_author_github">GitHub</string>
+    <string name="multirt_restore_internal">Pulihkan Java bawaan</string>
+    <string name="multirt_restore_internal_done">Java bawaan akan dipasang lagi saat launcher dibuka ulang</string>
 </resources>

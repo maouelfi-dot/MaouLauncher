@@ -290,7 +290,7 @@ private fun InfoRow(version: Version) {
     Row(
         modifier = Modifier
             .alpha(0.7f)
-            .basicMarquee(iterations = Int.MAX_VALUE),
+            .basicMarquee(iterations = 1),
         horizontalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         Text(
@@ -320,7 +320,7 @@ private fun CardNameText(
     card?.record?.versionName?.let { name ->
         Text(
             modifier = modifier
-                .basicMarquee(iterations = Int.MAX_VALUE)
+                .basicMarquee(iterations = 1)
                 .then(if (version == null) Modifier.alpha(0.55f) else Modifier),
             maxLines = 1,
             text = name,

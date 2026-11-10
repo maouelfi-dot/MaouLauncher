@@ -803,7 +803,7 @@ private fun AddonDependencyTags(
     Row(
         modifier = modifier
             .alpha(0.7f)
-            .basicMarquee(iterations = Int.MAX_VALUE),
+            .basicMarquee(iterations = 1),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         modLoaders?.forEach { modLoader ->

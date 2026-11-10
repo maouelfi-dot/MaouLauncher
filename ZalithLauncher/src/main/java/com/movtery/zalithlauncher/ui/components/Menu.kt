@@ -728,7 +728,7 @@ fun MenuButtonLayout(
     verticalAlignment: Alignment.Vertical = Alignment.Top,
     content: @Composable RowScope.() -> Unit
 ) {
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }

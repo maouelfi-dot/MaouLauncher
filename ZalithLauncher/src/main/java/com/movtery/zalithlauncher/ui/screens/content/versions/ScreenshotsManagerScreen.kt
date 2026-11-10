@@ -794,7 +794,7 @@ private fun ScreenshotItemLayout(
     shape: Shape = MaterialTheme.shapes.large,
 ) {
     val borderWidth by animateDpAsState(if (selected) 2.dp else (-1).dp)
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
 
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
@@ -841,7 +841,7 @@ private fun ScreenshotItemLayout(
                     .padding(horizontal = 8.dp, vertical = 6.dp)
             ) {
                 MinecraftColorTextNormal(
-                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                    modifier = Modifier.basicMarquee(iterations = 1),
                     inputText = info.name,
                     style = MaterialTheme.typography.labelMedium.copy(color = Color.White),
                     maxLines = 1

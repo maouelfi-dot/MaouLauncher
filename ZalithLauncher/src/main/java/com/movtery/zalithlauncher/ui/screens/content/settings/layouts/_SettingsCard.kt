@@ -18,6 +18,7 @@
 
 package com.movtery.zalithlauncher.ui.screens.content.settings.layouts
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -42,6 +43,11 @@ import com.movtery.zalithlauncher.ui.components.TitleAndSummary
 /**
  * 根据卡片在UI组中的位置，选择不同的圆角形状
  */
+private const val MAOU_FLAT_SETTINGS = true
+
+@Composable
+private fun maouBorder() = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.22f))
+
 enum class CardPosition {
     /**
      * 位于 UI 组的顶部
@@ -157,6 +163,8 @@ fun rememberSettingsCardShape(
     outerShape: Dp = 28.dp,
     innerShape: Dp = 4.dp
 ): Shape {
+    //[Maou] settings use separate flat tiles with one calm corner radius instead of connected groups
+    if (MAOU_FLAT_SETTINGS) return remember { RoundedCornerShape(14.dp) }
     return remember(position, outerShape, innerShape) {
         when (position) {
             CardPosition.Top -> RoundedCornerShape(
@@ -214,6 +222,7 @@ fun SettingsCard(
     BackgroundCard(
         modifier = modifier,
         shape = shape,
+        border = maouBorder(),
         content = content
     )
 }
@@ -233,6 +242,7 @@ fun SettingsCard(
     BackgroundCard(
         modifier = modifier,
         shape = shape,
+        border = maouBorder(),
         onClick = onClick,
         enabled = enabled,
         content = content
@@ -259,6 +269,7 @@ fun SettingsCard(
     BackgroundCard(
         modifier = modifier,
         shape = shape,
+        border = maouBorder(),
         onClick = onClick,
         enabled = enabled
     ) {
@@ -292,7 +303,7 @@ fun SettingsCardColumn(
 ) {
     Column(
         modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content
     )
 }

@@ -219,7 +219,7 @@ fun VersionOverviewItem(
             verticalArrangement = Arrangement.Center
         ) {
             Text(
-                modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                modifier = Modifier.basicMarquee(iterations = 1),
                 maxLines = 1,
                 text = versionName,
                 style = MaterialTheme.typography.labelLarge
@@ -227,7 +227,7 @@ fun VersionOverviewItem(
             Text(
                 modifier = Modifier
                     .alpha(0.7f)
-                    .basicMarquee(iterations = Int.MAX_VALUE),
+                    .basicMarquee(iterations = 1),
                 maxLines = 1,
                 text = versionSummary,
                 style = MaterialTheme.typography.labelMedium

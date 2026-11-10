@@ -163,8 +163,7 @@ fun WelcomeScreen(
                         horizontalArrangement = Arrangement.spacedBy(20.dp)
                     ) {
                         // 终端卡片布局
-                        WelcomeTerminal(
-                            isVisible = isVisible,
+                        MaouWelcomeHero(
                             modifier = Modifier
                                 .width(terminalWidth)
                                 .fillMaxHeight()

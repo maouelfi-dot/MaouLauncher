@@ -140,7 +140,9 @@ enum class FirstLoginMenu {
     /** 打开微软登录菜单 */
     MICROSOFT,
     /** 打开总登录菜单 */
-    NORMAL
+    NORMAL,
+    /** [Maou] 直接打开离线账号创建（不需要正版账号） */
+    LOCAL
 }
 
 /**
@@ -194,6 +196,9 @@ fun AccountManageScreen(
             }
             FirstLoginMenu.NORMAL -> {
                 actions.onIntent(AccountManageIntent.UpdateLoginMenuOp(LoginMenuOperation.Login))
+            }
+            FirstLoginMenu.LOCAL -> {
+                actions.onIntent(AccountManageIntent.UpdateLocalLoginOp(LocalLoginOperation.Edit))
             }
         }
 

@@ -23,7 +23,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        arch: ["all", "arm", "arm64", "x86", "x86_64"]
+        arch: ["arm", "arm64"] # [Maou] only phone ABIs: much smaller downloads
       fail-fast: false
 
     env:

@@ -37,7 +37,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearWavyProgressIndicator
+import com.movtery.zalithlauncher.ui.components.MaouProgressBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -286,9 +286,8 @@ private fun ContentResult(
                 )
             }
             is SearchIdOperation.Loading -> {
-                LinearWavyProgressIndicator(
-                    modifier = Modifier.width(168.dp),
-                    wavelength = 32.dp
+                MaouProgressBar(
+                    modifier = Modifier.width(168.dp)
                 )
             }
             is SearchIdOperation.Result -> {
@@ -405,7 +404,7 @@ private fun ResultLayout(
         //项目相关链接、截图
         if (!urls.isAllNull()) {
             item {
-                val scale = remember { Animatable(initialValue = 0.95f) }
+                val scale = remember { Animatable(initialValue = 1f) }
                 LaunchedEffect(Unit) {
                     scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
                 }
@@ -444,7 +443,7 @@ private fun ResultLayout(
         }
 
         items(screenshots) { screenshot ->
-            val scale = remember { Animatable(initialValue = 0.95f) }
+            val scale = remember { Animatable(initialValue = 1f) }
             LaunchedEffect(Unit) {
                 scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
             }

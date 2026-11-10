@@ -726,7 +726,7 @@ private fun VersionManagerLayout(
                 Text(
                     modifier = Modifier
                         .align(Alignment.CenterVertically)
-                        .basicMarquee(iterations = Int.MAX_VALUE),
+                        .basicMarquee(iterations = 1),
                     text = stringResource(R.string.versions_manage_no_versions),
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1
@@ -738,14 +738,14 @@ private fun VersionManagerLayout(
                         .align(Alignment.CenterVertically)
                 ) {
                     Text(
-                        modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                        modifier = Modifier.basicMarquee(iterations = 1),
                         text = version.getVersionName(),
                         style = MaterialTheme.typography.labelMedium,
                         maxLines = 1
                     )
                     if (version.isValid()) {
                         Text(
-                            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                            modifier = Modifier.basicMarquee(iterations = 1),
                             text = version.getVersionSummary(),
                             style = MaterialTheme.typography.labelSmall,
                             maxLines = 1

@@ -83,7 +83,7 @@ fun BaseFileItem(
                 style = MaterialTheme.typography.labelMedium
             )
             Row(
-                modifier = Modifier.basicMarquee(Int.MAX_VALUE),
+                modifier = Modifier.basicMarquee(iterations = 1),
                 horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 val date = Date(file.lastModified())

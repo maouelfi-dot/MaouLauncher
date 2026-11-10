@@ -45,6 +45,7 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import com.movtery.zalithlauncher.utils.currentGameDisplayLayout
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.movtery.inputmap.keycodes.DROP
 import com.movtery.inputmap.keycodes.DROP_VALUE
@@ -160,10 +161,20 @@ fun BoxScope.MinecraftHotbar(
                 renderSize, windowChangeKey
             ) {
                 val guiScale = getMCGuiScale(renderSize.width, renderSize.height)
-                val slotSize = guiScale * 20
+                // [Maou] guiScale is in RENDER pixels, but this touch box lives in SCREEN pixels. With a
+                // resolution scale below 100% the game is stretched up, so the real hotbar is bigger on
+                // screen than guiScale * 20; scale the box to match, otherwise slots are tiny/hard to hit.
+                val displayWidth = currentGameDisplayLayout(screenSize).displaySize.width
+                val stretch = if (renderSize.width > 0 && displayWidth > 0) {
+                    displayWidth.toFloat() / renderSize.width
+                } else 1f
+                val slotSize = guiScale * 20 * stretch
 
                 with(density) {
-                    hotbarSize = DpSize((slotSize * hotbarList.size).toDp(), slotSize.toDp())
+                    // Like Zalith Launcher 1: a forgiving touch box. At least 44dp tall and 30% taller than the
+                    // drawn hotbar (extra room is above it), so slots are easy to hit at any resolution scale.
+                    val slotHeightDp = (slotSize * 1.3f).toDp().coerceAtLeast(44.dp)
+                    hotbarSize = DpSize((slotSize * hotbarList.size).toDp(), slotHeightDp)
                 }
             }
         }

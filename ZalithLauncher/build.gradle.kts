@@ -115,10 +115,12 @@ android {
 
     signingConfigs {
         create("releaseBuild") {
-            storeFile = file("zalith_launcher.jks")
-            storePassword = getKeyFromLocal("STORE_PASSWORD", ".store_password.txt")
-            keyAlias = "movtery_zalith"
-            keyPassword = getKeyFromLocal("KEY_PASSWORD", ".key_password.txt")
+            // [Maou] Forks have no private keystore: sign the (fast, minified) release build with the bundled
+            // debug keystore so `assembleRelease` works without any secrets.
+            storeFile = file("zalith_launcher_debug.jks")
+            storePassword = defaultStorePassword
+            keyAlias = "movtery_zalith_debug"
+            keyPassword = defaultKeyPassword
         }
         create("debugBuild") {
             storeFile = file("zalith_launcher_debug.jks")
@@ -129,7 +131,7 @@ android {
     }
 
     defaultConfig {
-        // [Maou] ID aplikasi sendiri (namespace/package kode tetap, supaya tidak ada import yang rusak)
+        // [Maou] own package id, so it installs next to (and never replaces) the original Zalith Launcher
         applicationId = "com.maou.launcher"
         minSdk = 26
         targetSdk = 34
@@ -142,12 +144,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            // [Maou] kunci rilis asli tidak ada di repo -> pakai kunci debug supaya `assembleRelease` tetap jadi APK terpasang
-            signingConfig = if (getKeyFromLocal("STORE_PASSWORD", ".store_password.txt").isNotEmpty()) {
-                signingConfigs.getByName("releaseBuild")
-            } else {
-                signingConfigs.getByName("debugBuild")
-            }
+            signingConfig = signingConfigs.getByName("releaseBuild")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -155,8 +152,6 @@ android {
         }
         debug {
             isMinifyEnabled = false
-            applicationIdSuffix = ".debug"
-            versionNameSuffix = "-debug"
             signingConfig = signingConfigs.getByName("debugBuild")
         }
     }
@@ -281,7 +276,7 @@ androidComponents {
                 }
 
                 (output.getFilter(ABI)?.identifier ?: "all").let { abi ->
-                    val baseName = "$launcherName-${if (variant.buildType == "release") launcherVersionName else "Debug-$launcherVersionName"}"
+                    val baseName = "${launcherAPPName.replace(" ", "")}-${if (variant.buildType == "release") launcherVersionName else "Debug-$launcherVersionName"}"
                     output.outputFileName = if (abi == "all") "$baseName.apk" else "$baseName-$abi.apk"
                 }
             }

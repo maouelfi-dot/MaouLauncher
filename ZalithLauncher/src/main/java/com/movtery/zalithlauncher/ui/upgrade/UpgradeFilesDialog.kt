@@ -140,7 +140,7 @@ private fun UpgradeFileLayout(
                     )
                 }
                 Row(
-                    modifier = Modifier.basicMarquee(Int.MAX_VALUE),
+                    modifier = Modifier.basicMarquee(iterations = 1),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {

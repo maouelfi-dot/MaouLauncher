@@ -49,7 +49,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearWavyProgressIndicator
+import com.movtery.zalithlauncher.ui.components.MaouProgressBar
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -141,9 +141,8 @@ fun ResultListLayout(
                         .padding(all = 12.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    LinearWavyProgressIndicator(
-                        modifier = Modifier.width(168.dp),
-                        wavelength = 32.dp
+                    MaouProgressBar(
+                        modifier = Modifier.width(168.dp)
                     )
                 }
             }
@@ -451,7 +450,7 @@ fun ResultProjectLayout(
 ) {
     val context = LocalContext.current
 
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }
@@ -569,7 +568,7 @@ fun ResultProjectLayout(
                     Row(
                         modifier = Modifier
                             .weight(1f)
-                            .basicMarquee(Int.MAX_VALUE)
+                            .basicMarquee(iterations = 1)
                             .alpha(0.7f),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
@@ -628,7 +627,7 @@ fun ProjectTitleHead(
         MarqueeText(
             modifier = Modifier
                 .weight(1f)
-                .basicMarquee(iterations = Int.MAX_VALUE),
+                .basicMarquee(iterations = 1),
             text = title,
             style = MaterialTheme.typography.titleSmall,
         )

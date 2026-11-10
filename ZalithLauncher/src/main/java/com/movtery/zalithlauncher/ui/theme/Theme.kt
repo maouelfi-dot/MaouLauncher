@@ -22,6 +22,9 @@ import android.os.Build
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.Shapes
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.unit.dp
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -679,9 +682,20 @@ fun ZalithLauncherTheme(
     ) {
         MaterialExpressiveTheme(
             colorScheme = currentDisplayScheme,
-            motionScheme = MotionScheme.expressive(),
+            //[Maou] calmer, lighter motion and softer corners
+            motionScheme = MotionScheme.standard(),
+            shapes = MaouShapes,
             typography = AppTypography,
             content = content
         )
     }
 }
+
+
+private val MaouShapes = Shapes(
+    extraSmall = RoundedCornerShape(6.dp),
+    small = RoundedCornerShape(10.dp),
+    medium = RoundedCornerShape(14.dp),
+    large = RoundedCornerShape(20.dp),
+    extraLarge = RoundedCornerShape(28.dp)
+)

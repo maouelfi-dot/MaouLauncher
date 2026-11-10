@@ -167,13 +167,13 @@ fun GamePathItemLayout(
                     .alpha(if (enabled) 1f else DisabledAlpha)
             ) {
                 Text(
-                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                    modifier = Modifier.basicMarquee(iterations = 1),
                     text = if (notDefault) item.title else stringResource(R.string.versions_manage_game_path_default),
                     style = MaterialTheme.typography.labelMedium,
                     maxLines = 1
                 )
                 Text(
-                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                    modifier = Modifier.basicMarquee(iterations = 1),
                     text = item.path,
                     style = MaterialTheme.typography.labelSmall,
                     maxLines = 1
@@ -694,7 +694,7 @@ fun VersionItemLayout(
     onDeleteClick: () -> Unit = {},
     onPinned: () -> Unit = {}
 ) {
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }
@@ -904,7 +904,7 @@ fun CommonVersionInfoLayout(
         ) {
             //版本名称
             Text(
-                modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                modifier = Modifier.basicMarquee(iterations = 1),
                 maxLines = 1,
                 text = versionName,
                 style = MaterialTheme.typography.labelLarge
@@ -916,7 +916,7 @@ fun CommonVersionInfoLayout(
                 }
 
                 Text(
-                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                    modifier = Modifier.basicMarquee(iterations = 1),
                     maxLines = 1,
                     text = versionSummary,
                     style = MaterialTheme.typography.labelMedium

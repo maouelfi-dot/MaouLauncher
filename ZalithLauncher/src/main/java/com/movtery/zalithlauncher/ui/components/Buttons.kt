@@ -123,7 +123,7 @@ fun MarqueeText(
     textAlign: TextAlign? = null
 ) {
     Text(
-        modifier = modifier.basicMarquee(Int.MAX_VALUE),
+        modifier = modifier.basicMarquee(iterations = 1),
         text = text,
         color = color,
         style = style,

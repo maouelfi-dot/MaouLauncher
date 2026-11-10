@@ -24,6 +24,7 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.gestures.Orientation
+import com.movtery.zalithlauncher.components.jre.SkippedJre
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -174,6 +175,20 @@ fun JavaManageScreen(
                         contentDescription = stringResource(R.string.generic_refresh),
                         text = stringResource(R.string.generic_refresh),
                     )
+                    var hasSkipped by remember { mutableStateOf(SkippedJre.hasAny()) }
+                    if (hasSkipped) {
+                        val restoredText = stringResource(R.string.multirt_restore_internal_done)
+                        IconTextButton(
+                            onClick = {
+                                SkippedJre.clear()
+                                hasSkipped = false
+                                Toast.makeText(context, restoredText, Toast.LENGTH_LONG).show()
+                            },
+                            painter = painterResource(R.drawable.ic_refresh),
+                            contentDescription = stringResource(R.string.multirt_restore_internal),
+                            text = stringResource(R.string.multirt_restore_internal),
+                        )
+                    }
                     ImportMultipleFileButton(
                         extension = "xz",
                         progressUris = { uris ->
@@ -283,6 +298,7 @@ private fun RuntimeOperation(
                             R.string.multirt_runtime_deleting, runtime.name
                         ))
                         RuntimesManager.removeRuntime(runtime.name)
+                        SkippedJre.markDeleted(runtime.name)
                     },
                     onError = {
                         submitError(
@@ -372,7 +388,7 @@ private fun JavaRuntimeItem(
     onClick: () -> Unit = {},
     onDeleteClick: (() -> Unit)? = null
 ) {
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }

@@ -96,7 +96,7 @@ fun FavoriteProjectLayout(
     val categories: List<PlatformFilterCode>? = remote?.platformCategories(project.classes)
     val followsCount = remote?.platformFollows()
 
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }
@@ -233,7 +233,7 @@ fun FavoriteProjectLayout(
                     Row(
                         modifier = Modifier
                             .weight(1f)
-                            .basicMarquee(Int.MAX_VALUE)
+                            .basicMarquee(iterations = 1)
                             .alpha(0.7f),
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {

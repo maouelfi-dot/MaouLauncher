@@ -102,7 +102,7 @@ object AllSettings : SettingsRegistry() {
     /**
      * 持续性能模式
      */
-    val sustainedPerformance = boolSetting("sustainedPerformance", false)
+    val sustainedPerformance = boolSetting("sustainedPerformance", true)
 
     /**
      * 游戏运行时请求系统切换到同分辨率最高刷新率档位（关闭则回落系统自适应刷新）
@@ -383,8 +383,7 @@ object AllSettings : SettingsRegistry() {
      */
     val launcherColorTheme = enumSetting(
         "launcherColorTheme",
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) ColorThemeType.DYNAMIC
-        else ColorThemeType.EMBERMIRE
+        ColorThemeType.EMBERMIRE // Maou: purple/white theme by default (dynamic colour is heavier)
     )
 
     /**
@@ -400,7 +399,7 @@ object AllSettings : SettingsRegistry() {
     /**
      * 启动器UI深色主题
      */
-    val launcherDarkMode = enumSetting("launcherDarkMode", DarkMode.FollowSystem)
+    val launcherDarkMode = enumSetting("launcherDarkMode", DarkMode.Enable)
 
     /**
      * 启动器语言
@@ -415,7 +414,7 @@ object AllSettings : SettingsRegistry() {
     /**
      * 持续型节日彩蛋效果
      */
-    val launcherFestivalEffects = boolSetting("launcherFestivalEffects", true)
+    val launcherFestivalEffects = boolSetting("launcherFestivalEffects", false)
 
     /**
      * 启用页面切换动画
@@ -425,12 +424,12 @@ object AllSettings : SettingsRegistry() {
     /**
      * 动画速度
      */
-    val launcherAnimateSpeedLevel = intSetting("launcherAnimateSpeedLevel", 10, 1..30)
+    val launcherAnimateSpeedLevel = intSetting("launcherAnimateSpeedLevel", 25, 1..30)
 
     /**
      * 主界面操作菜单的停泊侧
      */
-    val launcherActionMenuSide = enumSetting("launcherActionMenuSide", ActionMenuSide.END)
+    val launcherActionMenuSide = enumSetting("launcherActionMenuSide", ActionMenuSide.START)
 
     /**
      * 启动器背景元素不透明度
@@ -440,7 +439,7 @@ object AllSettings : SettingsRegistry() {
     /**
      * 启动器视频背景音量
      */
-    val videoBackgroundVolume = intSetting("videoBackgroundVolume", 0, 0..100)
+    val videoBackgroundVolume = intSetting("videoBackgroundVolume", 100, 0..100)
 
     /**
      * 启动器背景模糊效果

@@ -659,7 +659,7 @@ private fun KeyButton(
             contentAlignment = Alignment.Center
         ) {
             AutoSizeText(
-                modifier = Modifier.basicMarquee(Int.MAX_VALUE),
+                modifier = Modifier.basicMarquee(iterations = 1),
                 text = name,
                 style = style,
                 maxLines = 1,

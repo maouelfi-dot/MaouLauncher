@@ -71,7 +71,7 @@ fun ScalingLabel(
     contentColor: Color = onItemColor(),
     blur: Int = AllSettings.backgroundBlur.state,
 ) {
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }
@@ -124,7 +124,7 @@ fun ScalingLabel(
     color: Color = itemColor(influencedByBackground = influencedByBackground),
     contentColor: Color = onItemColor(),
 ) {
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }
@@ -161,7 +161,7 @@ fun LittleTextLabel(
         Text(
             modifier = Modifier
                 .then(
-                    if (singleLine) Modifier.basicMarquee(Int.MAX_VALUE)
+                    if (singleLine) Modifier.basicMarquee(iterations = 1)
                     else Modifier
                 )
                 .padding(horizontal = 4.dp, vertical = 2.dp),

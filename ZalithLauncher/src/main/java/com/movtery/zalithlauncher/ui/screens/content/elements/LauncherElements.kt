@@ -225,7 +225,7 @@ fun LaunchGameOperation(
         is LaunchGameOperation.NoAccount -> {
             LaunchedEffect(Unit) {
                 eventViewModel.sendToast(androidText(R.string.game_launch_no_account))
-                toAccountManageScreen(FirstLoginMenu.NORMAL)
+                toAccountManageScreen(FirstLoginMenu.LOCAL)
                 launchGameViewModel.updateOperation(LaunchGameOperation.None)
             }
         }
@@ -641,8 +641,6 @@ private fun BackgroundImage(
 
     val imageLoader = remember(refreshTrigger) {
         ImageLoader.Builder(context)
-            // [Maou] satu gambar lokal saja: cache memori bawaan Coil (25% RAM) tidak perlu dan boros
-            .memoryCachePolicy(coil3.request.CachePolicy.DISABLED)
             .components { add(GifDecoder.Factory()) }
             .build()
     }

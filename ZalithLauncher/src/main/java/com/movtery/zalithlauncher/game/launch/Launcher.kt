@@ -343,32 +343,38 @@ abstract class Launcher(
         // [Zalith Mod] Keep RAM for Android + native memory (GL, audio, mod natives). A heap that eats the
         // whole phone RAM makes Android kill the game silently (log just stops), mostly on 2GB phones.
         val deviceMb = (com.movtery.zalithlauncher.utils.platform.getTotalMemory(GlobalContext.applicationContext) / (1024 * 1024)).toInt()
-        val reserveMb = if (deviceMb < 3072) 1000 else 900
-        val cappedRam = if (deviceMb > 0) ramAllocation.coerceAtMost(maxOf(640, deviceMb - reserveMb)) else ramAllocation
+        val lowRam = deviceMb in 1..3071
+        // 2GB phones: Android + GPU driver already use ~1GB, so a ~1.1GB heap forces constant paging
+        // (stutter, then Android kills the game / reboots the phone). Keep the heap near 35% of RAM there.
+        val cappedRam = when {
+            deviceMb <= 0 -> ramAllocation
+            lowRam -> ramAllocation.coerceAtMost(maxOf(512, deviceMb * 36 / 100))
+            else -> ramAllocation.coerceAtMost(maxOf(1024, deviceMb - 900))
+        }
         val ramAllocationString = cappedRam.toString()
-        args.add("-Xms${if (deviceMb in 1..3071) minOf(cappedRam, 384) else cappedRam}M") // Maou RAM
+        // Low RAM: start smaller than the maximum so the whole heap is not committed up front
+        val initialRam = if (lowRam) maxOf(minOf(cappedRam, 384), cappedRam / 2) else cappedRam
+        args.add("-Xms${initialRam}M")
         args.add("-Xmx${ramAllocationString}M")
 
-        // [Maou] Tolerate JVM flags this JRE does not know.
-        // Bytecode-verification flags dan arsip AppCDS SENGAJA dihapus: flag diagnostik tanpa
-        // -XX:+UnlockDiagnosticVMOptions membuat JVM gagal dibuat (game langsung keluar paksa),
-        // dan AppCDS bentrok dengan agent/bootclasspath di HP RAM kecil.
+        // [Zalith Mod] Faster start: skip bytecode verification, tolerate flags this JRE does not know.
         args.add("-XX:+IgnoreUnrecognizedVMOptions")
+        // NOTE: -XX:-BytecodeVerification* are *diagnostic* options and abort the JVM ("must be enabled via
+        // -XX:+UnlockDiagnosticVMOptions"), so they must NOT be passed.
+        // [Maou] Dynamic AppCDS archive (-XX:+AutoCreateSharedArchive / -XX:SharedArchiveFile) DIHAPUS:
+        // bentrok dengan -Xbootclasspath/a milik cacio dan bikin JVM mati mendadak di HP RAM kecil
+        // (game langsung keluar paksa, log terpotong di "OpenJDK 64-Bit Server VM warning:").
+        // Sisa arsip lama dibersihkan supaya tidak memakan penyimpanan.
+        runCatching { File(PathManager.DIR_CACHE, "cds").deleteRecursively() }
         // [Maou] Anti-kejang: Metaspace awal yang kecil memicu full GC berulang saat memuat banyak class
-        // (loading mod / load chunk). Tidak makan RAM kecuali terpakai. Dilewati kalau user sudah mengisi sendiri.
+        // (loading mod / load chunk). Tidak makan RAM kecuali terpakai; dilewati kalau user mengisi sendiri.
         if (args.none { it.startsWith("-XX:MetaspaceSize") }) args.add("-XX:MetaspaceSize=128m")
         // Low-RAM phones: lightest GC, smaller code cache, fixed young generation (avoids 1-3 s full-GC freezes)
-        if (deviceMb in 1..3071 && args.none { it.startsWith("-XX:+Use") && it.endsWith("GC") }) {
+        if (lowRam && args.none { it.startsWith("-XX:+Use") && it.endsWith("GC") }) {
             args.add("-XX:+UseSerialGC")
-            args.add("-Xmn${minOf(160, maxOf(96, cappedRam / 4))}M")
+            args.add("-Xmn${minOf(256, maxOf(96, cappedRam / 3))}M")
             args.add("-XX:-UsePerfData")
             args.add("-XX:CICompilerCount=2")
-            // Maou RAM: JIT C1 saja (hemat RAM + CPU, kurangi stutter dari kompilasi C2).
-            // MinHeapFreeRatio=10/MaxHeapFreeRatio=30 DIHAPUS: rasio sempit itu membuat heap terus
-            // menyusut-membesar dan memicu full GC beruntun (kejang 1-3 detik). Batas RAM tetap dijaga oleh -Xmx.
-            args.add("-XX:TieredStopAtLevel=1")
-            args.add("-XX:ReservedCodeCacheSize=48m")
-            args.add("-XX:+UseCompressedOops")
         }
 
         args.add("-Dorg.lwjgl.openal.libname=${PathManager.DIR_NATIVE_LIB}/libopenal.so")

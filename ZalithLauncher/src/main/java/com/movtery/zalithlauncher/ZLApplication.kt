@@ -125,14 +125,14 @@ class ZLApplication : Application(), SingletonImageLoader.Factory {
             .memoryCachePolicy(CachePolicy.ENABLED)
             .memoryCache {
                 MemoryCache.Builder()
-                    .maxSizeBytes(12L * 1024 * 1024) // [Maou] 12MB (hemat RAM)
+                    .maxSizeBytes(20L * 1024 * 1024) // 20MB
                     .weakReferencesEnabled(true) //弱引用
                     .build()
             }
             .diskCachePolicy(CachePolicy.ENABLED)
             .diskCache {
                 DiskCache.Builder()
-                    .maxSizeBytes(128L * 1024 * 1024) // [Maou] 128MB (hemat penyimpanan)
+                    .maxSizeBytes(512L * 1024 * 1024) // 512MB
                     .directory(PathManager.DIR_IMAGE_CACHE.toOkioPath())
                     .build()
             }

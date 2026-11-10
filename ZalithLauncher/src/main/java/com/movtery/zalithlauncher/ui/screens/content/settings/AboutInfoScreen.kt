@@ -125,6 +125,19 @@ fun AboutInfoScreen(
                         )
 
                         ButtonIconItem(
+                            icon = painterResource(R.drawable.img_avatar_maou),
+                            title = "Maou",
+                            text = stringResource(R.string.about_maou_author_text, BuildKeys.LAUNCHER_NAME),
+                            button = {
+                                Button(
+                                    onClick = { openLink("https://github.com/maouelfi-dot") }
+                                ) {
+                                    Text(text = stringResource(R.string.about_maou_author_github))
+                                }
+                            }
+                        )
+
+                        ButtonIconItem(
                             icon = painterResource(R.drawable.img_avatar_movtery),
                             title = stringResource(R.string.about_launcher_author_movtery_title),
                             text = stringResource(R.string.about_launcher_author_movtery_text, launcherName),

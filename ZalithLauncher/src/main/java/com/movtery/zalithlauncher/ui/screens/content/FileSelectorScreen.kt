@@ -339,7 +339,7 @@ private fun FileItem(
     color: Color = itemColor(),
     contentColor: Color = onItemColor(),
 ) {
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }

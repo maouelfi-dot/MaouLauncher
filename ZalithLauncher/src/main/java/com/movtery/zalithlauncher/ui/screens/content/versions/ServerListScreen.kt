@@ -761,7 +761,7 @@ private fun ServerItem(
 ) {
     val ot = item.operation
 
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }
@@ -806,7 +806,7 @@ private fun ServerItem(
                     ) {
                         //服务器名称
                         MinecraftColorTextNormal(
-                            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                            modifier = Modifier.basicMarquee(iterations = 1),
                             inputText = item.name,
                             style = MaterialTheme.typography.titleSmall,
                             maxLines = 1

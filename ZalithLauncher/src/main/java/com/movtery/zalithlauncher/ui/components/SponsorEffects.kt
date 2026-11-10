@@ -277,7 +277,7 @@ fun SponsorEffectBox(
         }
     }
     val tokenPainter = if (effect == SponsorPlanEffect.GOLDEN_TOKEN) {
-        painterResource(R.drawable.ic_maou_logo)
+        painterResource(R.drawable.ic_launcher_foreground)
     } else {
         null
     }

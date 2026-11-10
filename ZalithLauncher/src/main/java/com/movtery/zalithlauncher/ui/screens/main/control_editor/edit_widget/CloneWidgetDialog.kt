@@ -236,7 +236,7 @@ private fun SelectLayerListItem(
             }
         )
         Text(
-            modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+            modifier = Modifier.basicMarquee(iterations = 1),
             maxLines = 1,
             text = layer.name.orUnspecified(),
             style = MaterialTheme.typography.labelLarge

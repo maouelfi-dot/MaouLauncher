@@ -315,7 +315,7 @@ fun AccountItem(
     onDeleteClick: () -> Unit = {}
 ) {
     val selected = currentAccount?.uniqueUUID == account.uniqueUUID
-    val scale = remember { Animatable(initialValue = 0.95f) }
+    val scale = remember { Animatable(initialValue = 1f) }
     LaunchedEffect(Unit) {
         scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
     }

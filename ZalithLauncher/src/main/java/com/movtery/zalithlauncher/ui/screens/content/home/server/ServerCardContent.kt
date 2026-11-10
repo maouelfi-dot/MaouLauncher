@@ -291,7 +291,7 @@ private fun HeaderRow(card: ServerCardState?, iconSize: Dp) {
             ) {
                 card?.record?.name?.let { name ->
                     Text(
-                        modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                        modifier = Modifier.basicMarquee(iterations = 1),
                         maxLines = 1,
                         text = name,
                         style = MaterialTheme.typography.labelLarge
@@ -329,7 +329,7 @@ private fun RowContent(
         ) {
             card?.record?.name?.let { name ->
                 Text(
-                    modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                    modifier = Modifier.basicMarquee(iterations = 1),
                     maxLines = 1,
                     text = name,
                     style = MaterialTheme.typography.labelLarge

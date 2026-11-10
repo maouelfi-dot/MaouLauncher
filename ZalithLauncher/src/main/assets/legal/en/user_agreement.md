@@ -1,4 +1,6 @@
-# ZalithLauncher2 User Agreement
+# Maou Launcher User Agreement
+
+> **Maou Launcher** is an unofficial, modified build based on Zalith Launcher 2 (GPLv3). The terms below are inherited from the original project; "ZalithTeam" refers to the original developers, who are not responsible for this build.
 
 **Project:** ZalithLauncher2 (**ZL2**)  
 **Developer:** ZalithTeam (**we**, **us**, or **our**)  

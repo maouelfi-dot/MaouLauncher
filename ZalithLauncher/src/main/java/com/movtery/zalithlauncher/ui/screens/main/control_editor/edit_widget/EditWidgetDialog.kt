@@ -302,7 +302,7 @@ private fun EditWidgetTabLayout(
                 },
                 label = {
                     Text(
-                        modifier = Modifier.basicMarquee(iterations = Int.MAX_VALUE),
+                        modifier = Modifier.basicMarquee(iterations = 1),
                         text = stringResource(item.textRes),
                         maxLines = 1,
                         style = MaterialTheme.typography.labelMedium

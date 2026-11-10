@@ -1,4 +1,6 @@
-# ZalithLauncher2 隐私政策
+# Maou Launcher 隐私政策
+
+> **Maou Launcher** 是基于 Zalith Launcher 2（GPLv3）的非官方修改版。以下条款继承自原项目，“ZalithTeam”指原开发团队，其不对本修改版负责。
 
 **项目主体：** ZalithLauncher2（简称 **ZL2**）  
 **开发团队：** ZalithTeam（以下简称 **我们**）  

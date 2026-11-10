@@ -37,6 +37,7 @@ import com.movtery.zalithlauncher.components.InstallableItem
 import com.movtery.zalithlauncher.components.UnpackComponentsTask
 import com.movtery.zalithlauncher.components.jre.Jre
 import com.movtery.zalithlauncher.components.jre.UnpackJnaTask
+import com.movtery.zalithlauncher.components.jre.SkippedJre
 import com.movtery.zalithlauncher.components.jre.UnpackJreTask
 import com.movtery.zalithlauncher.context.readAssetFile
 import com.movtery.zalithlauncher.legal.AvailableAgreement
@@ -214,6 +215,8 @@ class SplashActivity : BaseAppCompatActivity() {
             )
         }
         Jre.entries.forEach { jre ->
+            //Java bawaan yang sudah dihapus pengguna tidak dipasang ulang
+            if (SkippedJre.isSkipped(jre.jreName)) return@forEach
             val task = UnpackJreTask(this@SplashActivity, jre)
             if (!task.isCheckFailed()) {
                 unpackItems.add(

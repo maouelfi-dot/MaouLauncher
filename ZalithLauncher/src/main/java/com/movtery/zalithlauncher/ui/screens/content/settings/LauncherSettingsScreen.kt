@@ -121,6 +121,8 @@ import com.movtery.zalithlauncher.viewmodel.ErrorViewModel
 import com.movtery.zalithlauncher.viewmodel.LocalBackgroundViewModel
 import kotlinx.coroutines.Dispatchers
 import java.io.File
+import java.net.Inet4Address
+import java.net.NetworkInterface
 
 private const val TAG = "LauncherSettingsScreen"
 
@@ -231,6 +233,15 @@ fun LauncherSettingsScreen(
                         summary = stringResource(R.string.settings_launcher_full_screen_summary)
                     )
                 }
+            }
+
+            //[Maou] bantuan mabar LAN lewat hotspot (2 HP, tanpa kuota)
+            AnimatedItem { ctx ->
+                HotspotLanCard(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animated(ctx)
+                )
             }
 
             //启动器背景设置板块
@@ -813,3 +824,45 @@ private fun BackgroundOperation(
         }
     }
 }
+
+/**
+ * Panduan mabar LAN lewat hotspot: menampilkan alamat IP HP ini agar teman bisa
+ * memakai Direct Connection (daftar LAN otomatis sering tidak muncul di hotspot).
+ */
+@Composable
+private fun HotspotLanCard(modifier: Modifier = Modifier) {
+    var showDialog by remember { mutableStateOf(false) }
+
+    SettingsCard(
+        modifier = modifier,
+        position = CardPosition.Single,
+        title = stringResource(R.string.maou_lan_title),
+        summary = stringResource(R.string.maou_lan_summary),
+        onClick = { showDialog = true }
+    )
+
+    if (showDialog) {
+        val ips = remember { localIpv4Addresses() }
+        val ipText = if (ips.isEmpty()) {
+            stringResource(R.string.maou_lan_no_ip)
+        } else {
+            ips.joinToString("\n") { "• ${it.second}  (${it.first})" }
+        }
+        SimpleAlertDialog(
+            title = stringResource(R.string.maou_lan_title),
+            text = stringResource(R.string.maou_lan_dialog_text, ipText),
+            onDismiss = { showDialog = false }
+        )
+    }
+}
+
+/** Daftar (nama antarmuka, alamat IPv4) milik HP ini, selain loopback. */
+private fun localIpv4Addresses(): List<Pair<String, String>> = runCatching {
+    NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+        .filter { it.isUp && !it.isLoopback }
+        .flatMap { nif ->
+            nif.inetAddresses.toList()
+                .filterIsInstance<Inet4Address>()
+                .mapNotNull { addr -> addr.hostAddress?.let { nif.name to it } }
+        }
+}.getOrDefault(emptyList())

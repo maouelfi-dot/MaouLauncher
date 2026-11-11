@@ -1,9 +1,8 @@
 name: Build CI
 
+# [Maou] APK Debug TIDAK lagi dibuat otomatis di setiap push (ukurannya besar dan boros kuota unduh).
+# APK yang dipakai sehari-hari selalu versi Release dari auto_release.yml. Debug hanya kalau dijalankan manual.
 on:
-  push:
-    branches:
-      - '**'
   workflow_dispatch:
 
 jobs:

@@ -1,19 +1,13 @@
 name: Android CI
 
 on:
-  release:
-    types:
-      - published
-  # [Maou] push a tag like v2.9.0 (or run manually) and the APKs are built and uploaded to a GitHub Release automatically
-  push:
-    tags:
-      - 'v*'
+  # [Maou] Rilis normal sekarang lewat auto_release.yml. Workflow ini hanya manual (bila perlu rilis dengan tag sendiri).
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Release tag, e.g. v2.9.0'
+        description: 'Release tag, e.g. v2.10.2'
         required: true
-        default: 'v2.9.0'
+        default: 'v2.10.2'
 
 permissions:
   contents: write

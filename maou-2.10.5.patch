@@ -1,0 +1,1081 @@
+diff --git a/ZalithLauncher/gradle.properties b/ZalithLauncher/gradle.properties
+index 15ae799..4e7c2c7 100644
+--- a/ZalithLauncher/gradle.properties
++++ b/ZalithLauncher/gradle.properties
+@@ -15,5 +15,5 @@ default_store_password=vh#nn%N(#eNjwfA78-77s6&f-cdd(@-7eana-e%!nhj%))!@c
+ default_key_password=sfv72ghSSNQaadf99-Q69!2
+ 
+ # launcher version
+-launcher_version_code=200120
+-launcher_version_name=2.10.2
+\ No newline at end of file
++launcher_version_code=200150
++launcher_version_name=2.10.5
+\ No newline at end of file
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/mabar/MabarLan.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/mabar/MabarLan.kt
+index 0f59e7f..ad70607 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/mabar/MabarLan.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/mabar/MabarLan.kt
+@@ -15,6 +15,7 @@ package com.movtery.zalithlauncher.game.mabar
+ 
+ import android.content.Context
+ import android.net.wifi.WifiManager
++import android.os.Process
+ import android.util.Base64
+ import com.movtery.zalithlauncher.game.account.Account
+ import com.movtery.zalithlauncher.game.account.offline.OfflineYggdrasilServer
+@@ -67,6 +68,8 @@ object MabarLan {
+     private const val VANILLA_PORT = 4445
+     private const val HOST_TTL_MS = 8_000L
+     private const val LAN_TTL_MS = 12_000L
++    private const val PEER_TTL_MS = 20_000L
++    private const val STICKY_HOST_MS = 90_000L
+     private const val MAX_TEXTURE_BYTES = 512 * 1024
+ 
+     data class LocalIp(val iface: String, val address: String)
+@@ -157,6 +160,10 @@ object MabarLan {
+         @Volatile private var pingMs = -1
+         private val activeLinks = AtomicInteger(0)
+ 
++        /** HP lain yang pernah mengirim siaran Mabar (ip -> waktu). Dipakai untuk kirim langsung (unicast). */
++        private val peers = ConcurrentHashMap<String, Long>()
++        private val scanMisses = ConcurrentHashMap<Int, Long>()
++
+         /** "nama" -> "skinHash/capeHash" yang sudah disinkronkan */
+         private val syncedPlayers = ConcurrentHashMap<String, String>()
+         private val fetching = ConcurrentHashMap.newKeySet<String>()
+@@ -172,15 +179,14 @@ object MabarLan {
+ 
+             runCatching {
+                 val wifi = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+-                multicastLock = wifi?.createMulticastLock("maou_mabar")?.apply {
+-                    setReferenceCounted(false)
+-                    acquire()
+-                }
++                //[Maou] kunci dibuat tapi TIDAK langsung dipegang (hemat baterai); dipegang hanya saat Mabar benar-benar dipakai
++                multicastLock = wifi?.createMulticastLock("maou_mabar")?.apply { setReferenceCounted(false) }
+             }.onFailure { Logger.warning(TAG, "MulticastLock unavailable", it) }
+ 
+             pool.execute { guarded("vanillaListener", ::vanillaListener) }
+             pool.execute { guarded("beaconSender", ::beaconSender) }
+             pool.execute { guarded("beaconReceiver", ::beaconReceiver) }
++            pool.execute { guarded("lanScanner", ::lanScanner) }
+             pool.execute { guarded("clientProxy", ::clientProxy) }
+             pool.execute { guarded("ticker", ::ticker) }
+             Logger.info(TAG, "Mabar LAN started")
+@@ -216,10 +222,19 @@ object MabarLan {
+ 
+         // ---- status -> UI --------------------------------------------------------------
+ 
++        /** Host terakhir yang pernah terlihat: dipertahankan sebentar supaya refresh daftar server tidak "kehilangan" host. */
++        @Volatile private var lastHost: Seen<HostInfo>? = null
++        @Volatile private var lastStatusJson: String? = null
++
+         private fun currentHost(): HostInfo? {
+             val now = System.currentTimeMillis()
+             hosts.entries.removeIf { now - it.value.at > HOST_TTL_MS }
+-            return hosts.values.maxByOrNull { it.at }?.value
++            val fresh = hosts.values.maxByOrNull { it.at }
++            if (fresh != null) {
++                lastHost = fresh
++                return fresh.value
++            }
++            return lastHost?.takeIf { now - it.at <= STICKY_HOST_MS }?.value
+         }
+ 
+         private fun ticker() {
+@@ -228,6 +243,13 @@ object MabarLan {
+                 val lan = ownLan?.takeIf { now - it.at <= LAN_TTL_MS }?.value?.first
+                 val host = currentHost()
+                 if (host == null) pingMs = -1
++                //pegang kunci multicast hanya saat ada host/teman yang terdeteksi
++                val busy = lan != null || host != null || peers.isNotEmpty()
++                runCatching {
++                    multicastLock?.let { l ->
++                        if (busy && !l.isHeld) l.acquire() else if (!busy && l.isHeld) l.release()
++                    }
++                }
+                 _state.value = State(
+                     running = true,
+                     localIps = localIpv4(),
+@@ -237,7 +259,7 @@ object MabarLan {
+                     activeLinks = activeLinks.get(),
+                     syncedPlayers = syncedPlayers.keys.sorted()
+                 )
+-                sleepAlive(1000)
++                sleepAlive(2000)
+             }
+         }
+ 
+@@ -284,65 +306,139 @@ object MabarLan {
+             }
+         }
+ 
+-        private fun isLocal(ip: String): Boolean =
+-            ip == "127.0.0.1" || localIpv4().any { it.address == ip }
++        @Volatile private var localCache: Set<String> = emptySet()
++        @Volatile private var localCacheAt = 0L
++
++        private fun isLocal(ip: String): Boolean {
++            if (ip == "127.0.0.1") return true
++            val now = System.currentTimeMillis()
++            if (now - localCacheAt > 5000) {
++                localCache = localIpv4().map { it.address }.toSet()
++                localCacheAt = now
++            }
++            return ip in localCache
++        }
+ 
+         // ---- 2. siaran sendiri (host + skin) --------------------------------------------
+ 
+-        private fun broadcastTargets(): List<InetAddress> = runCatching {
++        private fun ipToInetAddress(v: Int): InetAddress =
++            InetAddress.getByAddress(
++                byteArrayOf((v ushr 24).toByte(), (v ushr 16).toByte(), (v ushr 8).toByte(), v.toByte())
++            )
++
++        /** Pasangan (alamat lokal, alamat broadcast) untuk tiap antarmuka aktif, termasuk hotspot. */
++        private fun broadcastRoutes(): List<Pair<InetAddress, InetAddress>> = runCatching {
+             NetworkInterface.getNetworkInterfaces()?.toList().orEmpty()
+                 .filter { it.isUp && !it.isLoopback }
+                 .flatMap { nif ->
+                     nif.interfaceAddresses.mapNotNull { ia ->
+-                        ia.broadcast ?: (ia.address as? Inet4Address)?.let { a ->
++                        val local = ia.address as? Inet4Address ?: return@mapNotNull null
++                        val bc = ia.broadcast ?: run {
+                             val prefix = ia.networkPrefixLength.toInt()
+-                            if (prefix !in 8..30) return@let null
+-                            val ip = a.address
++                            if (prefix !in 8..30) return@run null
++                            val ip = local.address
+                             val mask = -1 shl (32 - prefix)
+-                            var v = ((ip[0].toInt() and 255) shl 24) or ((ip[1].toInt() and 255) shl 16) or
+-                                ((ip[2].toInt() and 255) shl 8) or (ip[3].toInt() and 255)
+-                            v = v or mask.inv()
+-                            InetAddress.getByAddress(
+-                                byteArrayOf((v ushr 24).toByte(), (v ushr 16).toByte(), (v ushr 8).toByte(), v.toByte())
+-                            )
+-                        }
++                            val v = (((ip[0].toInt() and 255) shl 24) or ((ip[1].toInt() and 255) shl 16) or
++                                ((ip[2].toInt() and 255) shl 8) or (ip[3].toInt() and 255)) or mask.inv()
++                            ipToInetAddress(v)
++                        } ?: return@mapNotNull null
++                        local to bc
+                     }
+-                }.distinct()
++                }.distinctBy { it.first.hostAddress }
+         }.getOrDefault(emptyList())
+ 
++        /** Alamat gateway: HP yang memberi hotspot hampir selalu berada di sini. */
++        private fun gatewayTargets(): List<InetAddress> {
++            val out = LinkedHashSet<String>()
++            runCatching {
++                val wifi = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
++                @Suppress("DEPRECATION")
++                val gw = wifi?.dhcpInfo?.gateway ?: 0
++                if (gw != 0) {
++                    out += "${gw and 255}.${(gw shr 8) and 255}.${(gw shr 16) and 255}.${(gw shr 24) and 255}"
++                }
++            }
++            //tebakan umum: x.y.z.1 di setiap subnet (hotspot Android biasanya 192.168.43.1 / 192.168.x.1)
++            localIpv4().forEach { l ->
++                val p = l.address.split('.')
++                if (p.size == 4 && p[3] != "1") out += "${p[0]}.${p[1]}.${p[2]}.1"
++            }
++            return out.mapNotNull { runCatching { InetAddress.getByName(it) }.getOrNull() }
++        }
++
+         private fun clean(s: String) = s.replace('|', '/').replace('\n', ' ').take(60)
+ 
++        private val hashCache = ConcurrentHashMap<String, Pair<Long, String>>()
++
++        private fun hashOf(f: File): String {
++            val stamp = f.lastModified() xor f.length()
++            hashCache[f.absolutePath]?.let { if (it.first == stamp) return it.second }
++            val h = DigestUtils.digestToString("SHA-256", f.readBytes())
++            hashCache[f.absolutePath] = stamp to h
++            return h
++        }
++
++        private fun buildPayloads(): List<ByteArray> {
++            val payloads = ArrayList<ByteArray>(2)
++            val lan = ownLan?.takeIf { System.currentTimeMillis() - it.at <= LAN_TTL_MS }?.value
++            if (lan != null) {
++                payloads += "MAOU1|HOST|${clean(lan.second.ifBlank { account.username })}|${lan.first}".toByteArray()
++            }
++            val skinServer = skinServer
++            if (skinServer != null) {
++                val ygg = skinServer.getPort()
++                val skinF = account.getSkinFile().takeIf { it.exists() }
++                val capeF = account.getCapeFile().takeIf { it.exists() }
++                if (ygg != null && (skinF != null || capeF != null)) {
++                    //hash dihitung ulang hanya bila file berubah (sebelumnya tiap 2 detik)
++                    val sh = skinF?.let { hashOf(it) } ?: ""
++                    val ch = capeF?.let { hashOf(it) } ?: ""
++                    val model = if (account.skinModelType == SkinModelType.ALEX) "slim" else "wide"
++                    payloads += "MAOU1|SKIN|${clean(account.username)}|${account.profileId.replace("-", "")}|$model|$sh|$ch|$ygg"
++                        .toByteArray()
++                }
++            }
++            return payloads
++        }
++
++        private fun sendTo(sock: DatagramSocket, target: InetAddress, payloads: List<ByteArray>) {
++            for (p in payloads) {
++                runCatching { sock.send(DatagramPacket(p, p.size, target, BEACON_PORT)) }
++            }
++        }
++
+         private fun beaconSender() {
+             val sock = track(DatagramSocket().apply { broadcast = true })
+-            val skinServer = skinServer
++            val limited = InetAddress.getByName("255.255.255.255")
++            val ask = "MAOU1|ASK|-|0".toByteArray()
+             while (alive) {
+-                val payloads = ArrayList<ByteArray>(2)
+-
+-                val lan = ownLan?.takeIf { System.currentTimeMillis() - it.at <= LAN_TTL_MS }?.value
+-                if (lan != null) {
+-                    payloads += "MAOU1|HOST|${clean(lan.second.ifBlank { account.username })}|${lan.first}".toByteArray()
+-                }
+-                if (skinServer != null) {
+-                    val ygg = skinServer.getPort()
+-                    val skin = account.getSkinFile().takeIf { it.exists() }?.readBytes()
+-                    val cape = account.getCapeFile().takeIf { it.exists() }?.readBytes()
+-                    if (ygg != null && (skin != null || cape != null)) {
+-                        val sh = skin?.let { DigestUtils.digestToString("SHA-256", it) } ?: ""
+-                        val ch = cape?.let { DigestUtils.digestToString("SHA-256", it) } ?: ""
+-                        val model = if (account.skinModelType == SkinModelType.ALEX) "slim" else "wide"
+-                        payloads += "MAOU1|SKIN|${clean(account.username)}|${account.profileId.replace("-", "")}|$model|$sh|$ch|$ygg"
+-                            .toByteArray()
++                val payloads = buildPayloads()
++                val all = payloads + ask
++                val now = System.currentTimeMillis()
++                peers.entries.removeIf { now - it.value > PEER_TTL_MS }
++
++                //1) broadcast lewat SETIAP antarmuka (socket diikat ke alamat antarmuka supaya keluar lewat hotspot/WiFi yang benar)
++                for ((local, bc) in broadcastRoutes()) {
++                    runCatching {
++                        DatagramSocket(0, local).use { s ->
++                            s.broadcast = true
++                            sendTo(s, bc, all)
++                            sendTo(s, limited, all)
++                        }
+                     }
++                    sendTo(sock, bc, all)
+                 }
++                sendTo(sock, limited, all)
+ 
+-                if (payloads.isNotEmpty()) {
+-                    for (target in broadcastTargets()) {
+-                        for (p in payloads) {
+-                            runCatching { sock.send(DatagramPacket(p, p.size, target, BEACON_PORT)) }
+-                        }
+-                    }
++                //2) kirim langsung ke gateway (pemberi hotspot) dan HP yang pernah terdengar:
++                //   tetap jalan walau router/hotspot memblokir broadcast
++                gatewayTargets().forEach { sendTo(sock, it, all) }
++                peers.keys.forEach { ip ->
++                    runCatching { sendTo(sock, InetAddress.getByName(ip), payloads) }
+                 }
+-                sleepAlive(2000)
++                //hemat baterai: sering hanya saat ada host/teman; selain itu jarang
++                val active = payloads.any { String(it).startsWith("MAOU1|HOST") } || peers.isNotEmpty()
++                sleepAlive(if (active) 2000 else 6000)
+             }
+         }
+ 
+@@ -367,14 +463,96 @@ object MabarLan {
+                 if (isLocal(src)) continue
+                 val parts = String(packet.data, 0, packet.length, Charsets.UTF_8).split('|')
+                 if (parts.size < 4 || parts[0] != "MAOU1") continue
++                peers[src] = System.currentTimeMillis()
+                 when (parts[1]) {
+                     "HOST" -> {
+                         val port = parts[3].toIntOrNull() ?: continue
+                         hosts[src] = Seen(HostInfo(src, port, parts[2]))
+                     }
+                     "SKIN" -> if (parts.size >= 8) onSkinBeacon(src, parts)
++                    //ada HP yang mencari: jawab langsung ke pengirimnya
++                    "ASK" -> {
++                        val reply = buildPayloads()
++                        if (reply.isNotEmpty()) runCatching {
++                            for (p in reply) sock.send(DatagramPacket(p, p.size, packet.address, BEACON_PORT))
++                        }
++                    }
++                }
++            }
++        }
++
++        // ---- 3b. cari dunia LAN sendiri tanpa bergantung pada multicast ------------------
++        //
++        // Banyak HP tidak meneruskan pengumuman multicast bawaan game ke antarmuka hotspot
++        // (terutama HP yang memberi hotspot dan tidak punya internet WiFi). Maka host dideteksi
++        // juga dengan melihat port TCP yang sedang listen milik aplikasi ini lalu menanyakan
++        // status Minecraft-nya.
++
++        private fun listeningPorts(): Set<Int> {
++            val uid = Process.myUid().toString()
++            val out = HashSet<Int>()
++            for (path in arrayOf("/proc/net/tcp", "/proc/net/tcp6")) {
++                runCatching {
++                    File(path).useLines { lines ->
++                        lines.drop(1).forEach { line ->
++                            val c = line.trim().split(Regex("\\s+"))
++                            if (c.size > 7 && c[3] == "0A" && c[7] == uid) {
++                                val port = c[1].substringAfterLast(':').toIntOrNull(16)
++                                if (port != null && port >= 1024) out += port
++                            }
++                        }
++                    }
+                 }
+             }
++            return out
++        }
++
++        private fun probeMinecraft(port: Int): String? = runCatching {
++            Socket().use { s ->
++                s.connect(InetSocketAddress("127.0.0.1", port), 400)
++                s.soTimeout = 1200
++                val hs = ByteArrayOutputStream().apply {
++                    writeVarInt(this, 0)       // id handshake
++                    writeVarInt(this, 767)     // versi protokol (tidak dipakai server untuk status)
++                    write(stringPayload("localhost"))
++                    write(byteArrayOf((port shr 8).toByte(), port.toByte()))
++                    writeVarInt(this, 1)       // next state = status
++                }.toByteArray()
++                val out = s.getOutputStream()
++                val framedHs = ByteArrayOutputStream().apply { writeVarInt(this, hs.size); write(hs) }.toByteArray()
++                out.write(framedHs)
++                out.write(byteArrayOf(1, 0)) // status request
++                out.flush()
++                val resp = ByteArrayInputStream(readPacket(s.getInputStream()))
++                readVarInt(resp)
++                if (readVarInt(resp) != 0) return@use null
++                val json = JSONObject(readString(resp))
++                if (!json.has("players") || !json.has("version")) return@use null
++                plainText(json.opt("description")).replace(Regex("§."), "").trim()
++            }
++        }.getOrNull()
++
++        private fun lanScanner() {
++            while (alive) {
++                val now = System.currentTimeMillis()
++                scanMisses.entries.removeIf { now - it.value > 8_000L }
++                val skip = HashSet<Int>().apply {
++                    add(PROXY_PORT)
++                    skinServer?.getPort()?.let { add(it) }
++                }
++                for (port in listeningPorts()) {
++                    if (!alive) break
++                    if (port in skip || scanMisses.containsKey(port)) continue
++                    val motd = probeMinecraft(port)
++                    if (motd != null) {
++                        ownLan = Seen(port to motd)
++                        break
++                    } else {
++                        scanMisses[port] = now
++                    }
++                }
++                sleepAlive(5000)
++            }
+         }
+ 
+         private fun onSkinBeacon(ip: String, p: List<String>) {
+@@ -484,7 +662,15 @@ object MabarLan {
+             hs.skip(2) // port
+             val nextState = readVarInt(hs)
+ 
+-            val host = currentHost()
++            var host = currentHost()
++            if (host == null && nextState != 1) {
++                //beri waktu sebentar: siaran host bisa baru tiba
++                var waited = 0
++                while (host == null && waited < 5000 && alive) {
++                    Thread.sleep(250); waited += 250
++                    host = currentHost()
++                }
++            }
+             when (nextState) {
+                 1 -> handleStatus(client, cin, cout, handshake, protocol, host)
+                 else -> handleLogin(client, cin, cout, handshake, host)
+@@ -516,11 +702,14 @@ object MabarLan {
+                     val resp = ByteArrayInputStream(readPacket(upstream.getInputStream()))
+                     readVarInt(resp); readVarInt(resp) // len, id
+                     json = patchStatus(readString(resp), host)
++                    lastStatusJson = json
+                 } catch (_: Throwable) {
+                     upstream?.let { runCatching { it.close() } }
+                     upstream = null
+                 }
+             }
++            //host tidak menjawab saat refresh: tampilkan status terakhir (ping tetap ada), jangan jadi "mencari"
++            if (json == null && host != null) json = lastStatusJson
+             if (json == null) json = placeholderStatus(protocol, host)
+ 
+             cout.write(statusPacket(json)); cout.flush()
+@@ -557,14 +746,23 @@ object MabarLan {
+             if (host == null) {
+                 val msg = JSONObject().put(
+                     "text",
+-                    "Belum ada host Mabar Hotspot.\nPastikan HP host sudah buka dunia ke LAN (Esc > Open to LAN) dan kamu tersambung ke hotspot-nya."
++                    "Host Mabar belum terdeteksi.\n1) HP host: buka dunia lalu Esc > Open to LAN.\n2) Kedua HP harus tersambung ke hotspot/WiFi yang sama.\n3) Kedua HP harus membuka game dengan Maou Launcher (Mabar aktif)."
+                 ).toString()
+                 cout.write(loginDisconnectPacket(msg)); cout.flush()
+                 return
+             }
+-            val upstream = try {
+-                connect(host, 4000)
+-            } catch (e: IOException) {
++            var upstreamTry: Socket? = null
++            var lastErr: IOException? = null
++            for (attempt in 0 until 4) {
++                try {
++                    upstreamTry = connect(host, 3000)
++                    break
++                } catch (e: IOException) {
++                    lastErr = e
++                    Thread.sleep(600)
++                }
++            }
++            val upstream = if (upstreamTry != null) upstreamTry else run {
+                 val msg = JSONObject().put("text", "Tidak bisa tersambung ke host ${host.ip}:${host.port}").toString()
+                 cout.write(loginDisconnectPacket(msg)); cout.flush()
+                 return
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/record/RecordService.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/record/RecordService.kt
+index beca74d..fcb12eb 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/record/RecordService.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/record/RecordService.kt
+@@ -3,6 +3,9 @@ package com.movtery.zalithlauncher.game.record
+ import android.app.Notification
+ import android.app.NotificationChannel
+ import android.app.NotificationManager
++import android.app.PendingIntent
++import android.graphics.drawable.Icon
++import android.widget.Toast
+ import android.app.Service
+ import android.content.Context
+ import android.content.Intent
+@@ -24,7 +27,12 @@ class RecordService : Service() {
+                 if (!ok) stopSelf()
+             }
+             else -> {
++                val file = ScreenRecorder.lastFile
++                val wasRecording = ScreenRecorder.recording.value
+                 ScreenRecorder.stop()
++                if (wasRecording) {
++                    Toast.makeText(this, getString(com.movtery.zalithlauncher.R.string.maou_record_saved, file?.absolutePath ?: ""), Toast.LENGTH_LONG).show()
++                }
+                 stopForeground(true)
+                 stopSelf()
+             }
+@@ -45,7 +53,19 @@ class RecordService : Service() {
+         } else {
+             @Suppress("DEPRECATION") Notification.Builder(this)
+         }
+-        val n = builder.setSmallIcon(applicationInfo.icon).setContentTitle("Merekam layar...").setOngoing(true).build()
++        val stopPi = PendingIntent.getService(
++            this, 0, Intent(this, RecordService::class.java).setAction(ACTION_STOP),
++            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
++        )
++        val stopAction = Notification.Action.Builder(
++            Icon.createWithResource(this, applicationInfo.icon), "Berhenti rekam", stopPi
++        ).build()
++        val n = builder.setSmallIcon(applicationInfo.icon)
++            .setContentTitle("Merekam layar...")
++            .setContentText("Ketuk Berhenti rekam untuk menyelesaikan")
++            .addAction(stopAction)
++            .setOngoing(true)
++            .build()
+         if (Build.VERSION.SDK_INT >= 29) {
+             startForeground(ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
+         } else {
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/record/ScreenRecorder.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/record/ScreenRecorder.kt
+index c69c2d1..5dda3ea 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/record/ScreenRecorder.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/record/ScreenRecorder.kt
+@@ -1,6 +1,6 @@
+ /*
+  * Maou Launcher - rekam layar ringan: MediaProjection + MediaRecorder (encoder H.264 hardware),
+- * maks 1280x720 @30fps ~4 Mbps, tanpa audio. Tidak menambah beban CPU/GPU berarti.
++ * maks 1280x720 @30fps ~4 Mbps, video saja (tanpa mikrofon). Tidak menambah beban CPU/GPU berarti.
+  */
+ package com.movtery.zalithlauncher.game.record
+ 
+@@ -37,6 +37,15 @@ object ScreenRecorder {
+     var lastFile: File? = null
+         private set
+ 
++    /** Waktu mulai rekam (ms, elapsedRealtime) untuk penunjuk durasi */
++    @Volatile
++    var startedAt: Long = 0L
++        private set
++
++    @Volatile
++    var withAudio: Boolean = false
++        private set
++
+     @Synchronized
+     fun start(context: Context, resultCode: Int, data: Intent): Boolean {
+         if (_recording.value) return true
+@@ -61,16 +70,43 @@ object ScreenRecorder {
+             dir.mkdirs()
+             val file = File(dir, "Maou_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".mp4")
+ 
+-            @Suppress("DEPRECATION")
+-            val rec = MediaRecorder().apply {
+-                setVideoSource(MediaRecorder.VideoSource.SURFACE)
+-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+-                setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+-                setVideoEncodingBitRate(4_000_000)
+-                setVideoFrameRate(30)
+-                setVideoSize(w, h)
+-                setOutputFile(file.absolutePath)
+-                prepare()
++            //[Maou] mikrofon TIDAK dipakai (suara orang tidak ikut). Android 8.1 tidak bisa merekam suara game langsung.
++            val micGranted = false
++
++            fun buildRecorder(audio: Boolean): MediaRecorder {
++                @Suppress("DEPRECATION")
++                val r = MediaRecorder()
++                try {
++                    if (audio) r.setAudioSource(MediaRecorder.AudioSource.MIC)
++                    r.setVideoSource(MediaRecorder.VideoSource.SURFACE)
++                    r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
++                    r.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
++                    r.setVideoEncodingBitRate(4_000_000)
++                    r.setVideoFrameRate(30)
++                    r.setVideoSize(w, h)
++                    if (audio) {
++                        r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
++                        r.setAudioEncodingBitRate(128_000)
++                        r.setAudioSamplingRate(44_100)
++                    }
++                    r.setOutputFile(file.absolutePath)
++                    r.prepare()
++                } catch (e: Throwable) {
++                    runCatching { r.release() }
++                    throw e
++                }
++                return r
++            }
++
++            var audioOn = micGranted
++            val rec = try {
++                buildRecorder(audioOn)
++            } catch (e: Throwable) {
++                if (!audioOn) throw e
++                //mikrofon sedang dipakai / tidak tersedia: tetap rekam video saja
++                Logger.warning(TAG, "Audio unavailable, recording video only", e)
++                audioOn = false
++                buildRecorder(false)
+             }
+             display = proj.createVirtualDisplay(
+                 "MaouRec", w, h, metrics.densityDpi,
+@@ -80,6 +116,8 @@ object ScreenRecorder {
+             projection = proj
+             recorder = rec
+             lastFile = file
++            withAudio = audioOn
++            startedAt = android.os.SystemClock.elapsedRealtime()
+             _recording.value = true
+             Logger.info(TAG, "Recording ${w}x$h -> ${file.absolutePath}")
+             true
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/LauncherScreen.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/LauncherScreen.kt
+index 8b86544..3725933 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/LauncherScreen.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/LauncherScreen.kt
+@@ -20,6 +20,11 @@ package com.movtery.zalithlauncher.ui.screens.content
+ 
+ import androidx.compose.foundation.basicMarquee
+ import androidx.compose.foundation.clickable
++import androidx.compose.foundation.gestures.awaitEachGesture
++import androidx.compose.foundation.gestures.awaitFirstDown
++import androidx.compose.ui.input.pointer.PointerEventPass
++import androidx.compose.ui.input.pointer.changedToUp
++import androidx.compose.ui.input.pointer.pointerInput
+ import androidx.compose.foundation.combinedClickable
+ import androidx.compose.foundation.layout.Arrangement
+ import androidx.compose.foundation.layout.Box
+@@ -203,20 +208,11 @@ fun LauncherScreen(
+                     Spacer(modifier = Modifier.weight(ActionMenuWeight))
+                 }
+ 
+-                val showStage = screenType != ScreenType.Tablet
+                 Row(
+                     modifier = Modifier
+                         .weight(ContentWeight)
+                         .offset { IntOffset(x = dragState.previewShift.value.roundToInt(), y = 0) }
+                 ) {
+-                    //菜单靠右时，玩家全身模型放在左侧；菜单靠左时放在右侧
+-                    if (showStage && dockedSide == ActionMenuSide.END) {
+-                        AccountStage(
+-                            isVisible = isVisible,
+-                            dockedSide = dockedSide,
+-                            toAccountManageScreen = toAccountManageScreen
+-                        )
+-                    }
+                     CompositionLocalProvider(
+                         LocalUriHandler provides object : UriHandler {
+                             override fun openUri(uri: String) {
+@@ -239,13 +235,6 @@ fun LauncherScreen(
+                             onOpenVersionSettings = navigateToVersions
+                         )
+                     }
+-                    if (showStage && dockedSide == ActionMenuSide.START) {
+-                        AccountStage(
+-                            isVisible = isVisible,
+-                            dockedSide = dockedSide,
+-                            toAccountManageScreen = toAccountManageScreen
+-                        )
+-                    }
+                 }
+ 
+                 // ActionMenu 对接到了 End，留出空位
+@@ -314,103 +303,109 @@ private fun ContentMenu(
+ }
+ 
+ /**
+- * 主页右侧（或左侧）的玩家全身模型舞台，仿基岩版主菜单：
+- * 模型头顶带名牌，可左右拖动旋转，点击名牌进入账号管理。
++ * [Maou] Ketukan ringan pada karakter = buka ganti akun / skin.
++ * Hanya MENGAMATI sentuhan (tidak mengonsumsi), jadi geser-putar karakter tetap berfungsi.
+  */
++private fun Modifier.observeTap(onTap: () -> Unit): Modifier = pointerInput(onTap) {
++    awaitEachGesture {
++        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
++        val slop = viewConfiguration.touchSlop
++        var moved = false
++        while (true) {
++            val ev = awaitPointerEvent(PointerEventPass.Initial)
++            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
++            if (ev.changes.size > 1 || (c.position - down.position).getDistance() > slop) moved = true
++            if (c.changedToUp()) {
++                if (!moved && c.uptimeMillis - down.uptimeMillis < 450L) onTap()
++                break
++            }
++        }
++    }
++}
++
++/** Karakter seluruh badan milik akun aktif (skin + jubah), dipakai di kartu kiri. */
+ @Composable
+-private fun AccountStage(
+-    isVisible: Boolean,
++private fun AccountCharacter(
++    account: Account?,
+     dockedSide: ActionMenuSide,
+-    toAccountManageScreen: () -> Unit,
+-    modifier: Modifier = Modifier
++    modifier: Modifier = Modifier,
++    onTap: () -> Unit,
+ ) {
+-    val ctx = rememberAnimatedContext(isVisible = isVisible)
+-    val account by AccountsManager.currentAccountFlow.collectAsStateWithLifecycle()
+     val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
+     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+     val yaw = Math.toRadians(
+-        ((if (dockedSide == ActionMenuSide.START) -25.0 else 25.0) * (if (isRtl) -1 else 1))
++        ((if (dockedSide == ActionMenuSide.START) 30.0 else -30.0) * (if (isRtl) -1 else 1))
+     ).toFloat()
+-
+     val armModel = account?.skinModelType?.toArmModel()
+     val skinStamp = account?.getSkinFile()?.lastModified()
+     val capeStamp = account?.getCapeFile()?.lastModified()
+     val skinBytes by produceState<ByteArray?>(null, account, refreshWardrobe, skinStamp, armModel) {
+         value = withContext(Dispatchers.IO) {
+-            account?.getSkinFile()?.takeIf { it.exists() }
+-                ?.inputStream()?.use { it.readBytes() }
++            account?.getSkinFile()?.takeIf { it.exists() }?.inputStream()?.use { it.readBytes() }
+         }
+     }
+     val capeBytes by produceState<ByteArray?>(null, account, refreshWardrobe, capeStamp) {
+         value = withContext(Dispatchers.IO) {
+-            account?.getCapeFile()?.takeIf { it.exists() }
+-                ?.inputStream()?.use { it.readBytes() }
++            account?.getCapeFile()?.takeIf { it.exists() }?.inputStream()?.use { it.readBytes() }
+         }
+     }
++    PetModelView(
++        modifier = modifier.observeTap(onTap),
++        skin = skinBytes,
++        cape = capeBytes,
++        arm = armModel,
++        yaw = yaw,
++        animation = PetAnimation.Idle,
++        tapReaction = PetTapReaction.Interact,
++        dragYaw = true,
++        gazeEnabled = false
++    )
++}
+ 
++/** [Maou] Name tag tanpa kotak hitam: nama dengan cahaya ungu + lencana tipe akun berbingkai tipis. */
++@Composable
++private fun AccountNameTag(
++    account: Account?,
++    modifier: Modifier = Modifier,
++) {
++    val accent = MaterialTheme.colorScheme.primary
+     Column(
+-        modifier = modifier
+-            .width(StageWidth)
+-            .fillMaxHeight()
+-            .animated(ctx, from = AnimatedDirection.Bottom)
+-            .padding(vertical = 8.dp),
++        modifier = modifier,
+         horizontalAlignment = Alignment.CenterHorizontally
+     ) {
+-        //名牌：半透明黑底白字，与游戏内名牌一致
+-        Surface(
+-            modifier = Modifier
+-                .guideNode(
+-                    key = GuideKeys.Main.Step.Account,
+-                    preferSide = GuideSide.Below,
+-                    holeRadius = 20.dp
++        Text(
++            text = account?.username ?: stringResource(R.string.account_add_new_account),
++            maxLines = 1,
++            overflow = TextOverflow.Ellipsis,
++            style = MaterialTheme.typography.titleMedium.copy(
++                shadow = androidx.compose.ui.graphics.Shadow(
++                    color = accent.copy(alpha = 0.9f),
++                    offset = androidx.compose.ui.geometry.Offset(0f, 2f),
++                    blurRadius = 18f
+                 )
+-                .clip(RoundedCornerShape(6.dp))
+-                .clickable(onClick = toAccountManageScreen),
+-            shape = RoundedCornerShape(6.dp),
+-            color = Color.Black.copy(alpha = 0.55f),
+-            contentColor = Color.White
+-        ) {
+-            Column(
+-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+-                horizontalAlignment = Alignment.CenterHorizontally
++            ),
++            fontWeight = FontWeight.ExtraBold,
++            color = Color.White
++        )
++        account?.let {
++            Surface(
++                modifier = Modifier.padding(top = 3.dp),
++                shape = androidx.compose.foundation.shape.CircleShape,
++                color = Color.Transparent,
++                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.85f)),
++                contentColor = Color.White.copy(alpha = 0.92f)
+             ) {
+                 Text(
+-                    text = account?.username ?: stringResource(R.string.account_add_new_account),
++                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 1.dp),
++                    text = getAccountTypeName(it),
+                     maxLines = 1,
+-                    overflow = TextOverflow.Ellipsis,
+-                    style = MaterialTheme.typography.titleSmall,
+-                    fontWeight = FontWeight.Bold
++                    style = MaterialTheme.typography.labelSmall
+                 )
+-                account?.let {
+-                    Text(
+-                        text = getAccountTypeName(it),
+-                        maxLines = 1,
+-                        style = MaterialTheme.typography.labelSmall,
+-                        color = Color.White.copy(alpha = 0.75f)
+-                    )
+-                }
+             }
+         }
+-
+-        //全身模型，可拖动旋转（gaze 关闭以省电省 CPU）
+-        PetModelView(
+-            modifier = Modifier
+-                .weight(1f)
+-                .fillMaxWidth(),
+-            skin = skinBytes,
+-            cape = capeBytes,
+-            arm = armModel,
+-            yaw = yaw,
+-            animation = PetAnimation.Idle,
+-            tapReaction = PetTapReaction.Interact,
+-            dragYaw = true,
+-            gazeEnabled = false
+-        )
+     }
+ }
+ 
+-private val StageWidth = 150.dp
+-
+ @Composable
+ private fun AccountAvatarRow(
+     modifier: Modifier = Modifier,
+@@ -578,6 +573,7 @@ private fun VersionsContent(
+ private fun ActionMenuCardContent(
+     modifier: Modifier = Modifier,
+     account: Account?,
++    dockedSide: ActionMenuSide,
+     onLaunchGame: (Version?) -> Unit,
+     toAccountManageScreen: () -> Unit,
+     toVersionManageScreen: () -> Unit,
+@@ -590,17 +586,33 @@ private fun ActionMenuCardContent(
+             .then(modifier),
+         shape = MaterialTheme.shapes.extraLarge
+     ) {
+-        ConstraintLayout(
+-            modifier = Modifier.fillMaxSize()
+-        ) {
+-            val (versionManagerLayout) = createRefs()
+-
++        Column(modifier = Modifier.fillMaxSize()) {
++            //[Maou] karakter menyatu di dalam kartu; ketuk karakter = ganti akun / skin
++            Box(
++                modifier = Modifier
++                    .weight(1f)
++                    .fillMaxWidth()
++            ) {
++                AccountCharacter(
++                    account = account,
++                    dockedSide = dockedSide,
++                    modifier = Modifier.fillMaxSize(),
++                    onTap = toAccountManageScreen
++                )
++                AccountNameTag(
++                    account = account,
++                    modifier = Modifier
++                        .align(Alignment.TopCenter)
++                        .padding(top = 10.dp, start = 8.dp, end = 8.dp)
++                        .guideNode(
++                            key = GuideKeys.Main.Step.Account,
++                            preferSide = GuideSide.Below,
++                            holeRadius = 20.dp
++                        )
++                )
++            }
+             VersionsContent(
+-                modifier = Modifier.constrainAs(versionManagerLayout) {
+-                    start.linkTo(parent.start)
+-                    end.linkTo(parent.end)
+-                    bottom.linkTo(parent.bottom)
+-                },
++                modifier = Modifier.fillMaxWidth(),
+                 onLaunchGame = onLaunchGame,
+                 toVersionManageScreen = toVersionManageScreen,
+                 toVersionSettingsScreen = toVersionSettingsScreen,
+@@ -656,7 +668,8 @@ private fun ActionMenuTallerContent(
+         PetModelView(
+             modifier = Modifier
+                 .weight(1f)
+-                .fillMaxWidth(),
++                .fillMaxWidth()
++                .observeTap(toAccountManageScreen),
+             skin = skinBytes,
+             cape = capeBytes,
+             arm = armModel,
+@@ -734,6 +747,7 @@ private fun ActionMenu(
+         ActionMenuCardContent(
+             modifier = contentModifier,
+             account = account,
++            dockedSide = dockedSide,
+             onLaunchGame = onLaunchGame,
+             toAccountManageScreen = toAccountManageScreen,
+             toVersionManageScreen = toVersionManageScreen,
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/elements/BackgroundGlass.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/elements/BackgroundGlass.kt
+index b93ace0..ca9fa8f 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/elements/BackgroundGlass.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/content/elements/BackgroundGlass.kt
+@@ -326,8 +326,8 @@ private class BackgroundCaptureNode(
+                         val started = System.nanoTime()
+                         store.captureGlassFrame()
+                         val elapsedMs = (System.nanoTime() - started) / 1_000_000L
+-                        //[Maou] 16ms/frame terlalu berat di HP lama (blur+capture tiap frame = lag scroll). Cukup ~4 fps.
+-                        delay((250L - elapsedMs).coerceAtLeast(0L).milliseconds)
++                        //[Maou] 16ms/frame terlalu berat di HP lama (blur+capture tiap frame = lag scroll). Cukup ~1.5 fps (hemat baterai).
++                        delay((600L - elapsedMs).coerceAtLeast(0L).milliseconds)
+                     }
+                 }
+             }
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/GameScreen.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/GameScreen.kt
+index 7d75306..b4425f2 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/GameScreen.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/GameScreen.kt
+@@ -40,6 +40,8 @@ import androidx.compose.runtime.Composable
+ import androidx.compose.runtime.DisposableEffect
+ import androidx.compose.runtime.LaunchedEffect
+ import androidx.compose.runtime.getValue
++import com.movtery.zalithlauncher.game.record.ScreenRecorder
++import com.movtery.zalithlauncher.ui.screens.game.elements.RecordingIndicator
+ import androidx.compose.runtime.mutableIntStateOf
+ import androidx.compose.runtime.mutableStateOf
+ import androidx.compose.runtime.remember
+@@ -583,6 +585,8 @@ fun GameScreen(
+     }
+     val editorViewModel = rememberEditorViewModel("ControlEditor_Times=${viewModel.editorRefresh}")
+     val cursorMode by ZLBridgeStates.cursorMode.collectAsStateWithLifecycle()
++    //[Maou] saat merekam: kontrol layar & tombol menu melayang disembunyikan (tetap berfungsi) agar tidak terekam
++    val isRecording by ScreenRecorder.recording.collectAsStateWithLifecycle()
+     val isGrabbing = remember(cursorMode) {
+         cursorMode == CURSOR_DISABLED
+     }
+@@ -672,7 +676,7 @@ fun GameScreen(
+                 observedLayout = viewModel.observableLayout,
+                 eventHandler = viewModel.eventHandler,
+                 checkOccupiedPointers = { viewModel.occupiedPointers.contains(it) },
+-                opacity = { (AllSettings.controlsOpacity.state.toFloat() / 100f).coerceIn(0f, 1f) },
++                opacity = { if (isRecording) 0f else (AllSettings.controlsOpacity.state.toFloat() / 100f).coerceIn(0f, 1f) },
+                 markPointerAsMoveOnly = { viewModel.moveOnlyPointers.add(it) },
+                 onOccupiedPointer = { viewModel.occupiedPointers.add(it) },
+                 onReleasePointer = { viewModel.occupiedPointers.remove(it) },
+@@ -839,13 +843,20 @@ fun GameScreen(
+                     fpsMin = { viewModel.fpsMin },
+                     showMemory = AllSettings.showMemory.state,
+                     opened = viewModel.gameMenuState == MenuState.SHOW,
+-                    alpha = AllSettings.menuBallOpacity.state / 100f,
++                    alpha = if (isRecording) 0f else AllSettings.menuBallOpacity.state / 100f,
+                     onClick = {
+                         viewModel.switchMenu()
+                     }
+                 )
+             }
+         }
++
++        //[Maou] penanda sedang merekam
++        if (isRecording) {
++            Box(modifier = Modifier.fillMaxSize()) {
++                RecordingIndicator(modifier = Modifier.align(Alignment.TopStart))
++            }
++        }
+     }
+ 
+     LaunchedEffect(Unit) {
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/elements/RecordingIndicator.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/elements/RecordingIndicator.kt
+new file mode 100644
+index 0000000..7403fd7
+--- /dev/null
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/elements/RecordingIndicator.kt
+@@ -0,0 +1,81 @@
++package com.movtery.zalithlauncher.ui.screens.game.elements
++
++import android.content.Context
++import android.content.Intent
++import android.os.SystemClock
++import androidx.compose.animation.core.RepeatMode
++import androidx.compose.animation.core.animateFloat
++import androidx.compose.animation.core.infiniteRepeatable
++import androidx.compose.animation.core.rememberInfiniteTransition
++import androidx.compose.animation.core.tween
++import androidx.compose.foundation.background
++import androidx.compose.foundation.gestures.detectTapGestures
++import androidx.compose.foundation.layout.Box
++import androidx.compose.foundation.layout.Row
++import androidx.compose.foundation.layout.padding
++import androidx.compose.foundation.layout.size
++import androidx.compose.foundation.shape.CircleShape
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.runtime.LaunchedEffect
++import androidx.compose.runtime.getValue
++import androidx.compose.runtime.mutableLongStateOf
++import androidx.compose.runtime.remember
++import androidx.compose.runtime.setValue
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.draw.alpha
++import androidx.compose.ui.graphics.Color
++import androidx.compose.ui.input.pointer.pointerInput
++import androidx.compose.ui.platform.LocalContext
++import androidx.compose.ui.text.font.FontWeight
++import androidx.compose.ui.unit.dp
++import androidx.compose.ui.unit.sp
++import com.movtery.zalithlauncher.game.record.RecordService
++import com.movtery.zalithlauncher.game.record.ScreenRecorder
++import kotlinx.coroutines.delay
++
++/**
++ * [Maou] Penanda "sedang merekam": titik merah berkedip + durasi di pojok kiri atas.
++ * Tekan lama untuk berhenti merekam (tombol menu melayang disembunyikan selama merekam
++ * supaya tidak ikut terekam).
++ */
++@Composable
++fun RecordingIndicator(modifier: Modifier = Modifier) {
++    val context = LocalContext.current
++    var elapsed by remember { mutableLongStateOf(0L) }
++    LaunchedEffect(Unit) {
++        while (true) {
++            elapsed = (SystemClock.elapsedRealtime() - ScreenRecorder.startedAt) / 1000L
++            delay(1000)
++        }
++    }
++    val blink by rememberInfiniteTransition(label = "rec").animateFloat(
++        initialValue = 1f,
++        targetValue = 0.25f,
++        animationSpec = infiniteRepeatable(tween(700), RepeatMode.Reverse),
++        label = "recBlink"
++    )
++    Row(
++        modifier = modifier
++            .padding(8.dp)
++            .background(Color(0x88000000), CircleShape)
++            .padding(horizontal = 8.dp, vertical = 3.dp)
++            .pointerInput(Unit) {
++                detectTapGestures(onLongPress = {
++                    context.startService(
++                        Intent(context, RecordService::class.java).setAction(RecordService.ACTION_STOP)
++                    )
++                })
++            },
++        verticalAlignment = Alignment.CenterVertically
++    ) {
++        Box(Modifier.size(8.dp).alpha(blink).background(Color(0xFFFF3B3B), CircleShape))
++        Text(
++            text = "  REC %02d:%02d".format(elapsed / 60, elapsed % 60),
++            color = Color.White,
++            fontSize = 10.sp,
++            fontWeight = FontWeight.Bold
++        )
++    }
++}
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/elements/ScreenRecordButton.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/elements/ScreenRecordButton.kt
+index 58f0842..8927f4d 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/elements/ScreenRecordButton.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ui/screens/game/elements/ScreenRecordButton.kt
+@@ -4,7 +4,6 @@ import android.app.Activity
+ import android.content.Context
+ import android.content.Intent
+ import android.media.projection.MediaProjectionManager
+-import android.widget.Toast
+ import androidx.activity.compose.rememberLauncherForActivityResult
+ import androidx.activity.result.contract.ActivityResultContracts
+ import androidx.compose.runtime.Composable
+@@ -29,7 +28,7 @@ fun ScreenRecordButton(
+     val context = LocalContext.current
+     val recording by ScreenRecorder.recording.collectAsState()
+ 
+-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
++    val projectionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+         val data = result.data
+         if (result.resultCode == Activity.RESULT_OK && data != null) {
+             val intent = Intent(context, RecordService::class.java)
+@@ -40,20 +39,19 @@ fun ScreenRecordButton(
+         }
+     }
+ 
++    fun askProjection() {
++        val mgr = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
++        projectionLauncher.launch(mgr.createScreenCaptureIntent())
++    }
++
+     MenuTextButton(
+         modifier = modifier,
+         text = stringResource(if (recording) R.string.maou_record_stop else R.string.maou_record_start),
+         onClick = {
+             if (recording) {
+                 context.startService(Intent(context, RecordService::class.java).setAction(RecordService.ACTION_STOP))
+-                Toast.makeText(
+-                    context,
+-                    context.getString(R.string.maou_record_saved, ScreenRecorder.lastFile?.absolutePath ?: ""),
+-                    Toast.LENGTH_LONG
+-                ).show()
+             } else {
+-                val mgr = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+-                launcher.launch(mgr.createScreenCaptureIntent())
++                askProjection()
+             }
+         },
+         color = color,

@@ -26,6 +26,7 @@ import com.movtery.zalithlauncher.game.account.Account
 import com.movtery.zalithlauncher.game.account.isAuthServerAccount
 import com.movtery.zalithlauncher.game.account.isLocalAccount
 import com.movtery.zalithlauncher.game.account.offline.OfflineYggdrasilServer
+import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.game.multirt.Runtime
 import com.movtery.zalithlauncher.game.path.getAssetsHome
 import com.movtery.zalithlauncher.game.path.getLibrariesHome
@@ -184,7 +185,8 @@ class LaunchArgs(
         val argsList: MutableList<String> = ArrayList()
 
         if (account.isLocalAccount()) {
-            if (account.hasSkinFile) {
+            //[Maou] juga aktif bila punya cape lokal, atau Mabar aktif (agar skin/cape pemain lain terlihat)
+            if (account.hasSkinFile || account.getCapeFile().exists() || AllSettings.mabarLan.getValue()) {
                 //该离线账号拥有本地皮肤，启用离线yggdrasil服务器
                 offlineServer.start()
                 offlineServer.addCharacter(account)

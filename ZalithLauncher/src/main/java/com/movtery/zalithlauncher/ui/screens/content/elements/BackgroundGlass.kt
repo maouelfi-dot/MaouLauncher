@@ -190,10 +190,13 @@ private class GlassNode(
         }
 
         drawRect(color = color, blendMode = BlendMode.SrcOver)
-        drawRect(
-            color = Color.White.copy(alpha = whiteOverlayAlpha(blur)),
-            blendMode = BlendMode.Softlight
-        )
+        //[Maou] Softlight memaksa saveLayer per kartu; dilewati di Android < 12 agar scroll ringan
+        if (Build.VERSION.SDK_INT >= 31) {
+            drawRect(
+                color = Color.White.copy(alpha = whiteOverlayAlpha(blur)),
+                blendMode = BlendMode.Softlight
+            )
+        }
     }
 }
 
@@ -323,7 +326,8 @@ private class BackgroundCaptureNode(
                         val started = System.nanoTime()
                         store.captureGlassFrame()
                         val elapsedMs = (System.nanoTime() - started) / 1_000_000L
-                        delay((16L - elapsedMs).coerceAtLeast(0L).milliseconds)
+                        //[Maou] 16ms/frame terlalu berat di HP lama (blur+capture tiap frame = lag scroll). Cukup ~4 fps.
+                        delay((250L - elapsedMs).coerceAtLeast(0L).milliseconds)
                     }
                 }
             }

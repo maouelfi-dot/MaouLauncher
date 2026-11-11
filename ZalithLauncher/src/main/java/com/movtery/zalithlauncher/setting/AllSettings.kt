@@ -424,7 +424,7 @@ object AllSettings : SettingsRegistry() {
     /**
      * 动画速度
      */
-    val launcherAnimateSpeedLevel = intSetting("launcherAnimateSpeedLevel", 25, 1..30)
+    val launcherAnimateSpeedLevel = intSetting("launcherAnimateSpeedLevel", 30, 1..30)
 
     /**
      * 主界面操作菜单的停泊侧
@@ -434,7 +434,7 @@ object AllSettings : SettingsRegistry() {
     /**
      * 启动器背景元素不透明度
      */
-    val launcherBackgroundOpacity = intSetting("launcherBackgroundOpacity", 80, 20..100)
+    val launcherBackgroundOpacity = intSetting("launcherBackgroundOpacity", 45, 20..100)
 
     /**
      * 启动器视频背景音量
@@ -581,6 +581,16 @@ object AllSettings : SettingsRegistry() {
      * 控制布局编辑器：控件吸附模式
      */
     val editorWidgetSnapMode = enumSetting("editorWidgetSnapMode", SnapMode.FullScreen)
+
+    /**
+     * [Maou] Mabar Hotspot: deteksi otomatis, entri server WiFi, sinkron skin & cape antar pemain LAN
+     */
+    val mabarLan = boolSetting("mabarLan", true)
+
+    /**
+     * [Maou] Batas FPS game (0 = tanpa batas). Ditulis ke maxFps di options.txt saat game diluncurkan.
+     */
+    val fpsLimit = intSetting("fpsLimit", 0, 0..60)
 
     /**
      * 是否启用陶瓦联机

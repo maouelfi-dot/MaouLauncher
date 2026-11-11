@@ -18,6 +18,7 @@
 
 package com.movtery.zalithlauncher.ui.screens.splash
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,6 +33,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import com.movtery.zalithlauncher.BuildKeys
 import androidx.compose.ui.res.stringResource
@@ -139,26 +143,34 @@ private fun LoadingScreen(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(
-                    Brush.verticalGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.surface,
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
-                        )
-                    )
-                )
                 .animated(ctx, from = AnimatedDirection.Bottom),
             contentAlignment = Alignment.Center
         ) {
+            Image(
+                modifier = Modifier.fillMaxSize(),
+                painter = painterResource(R.drawable.img_splash_bg),
+                contentDescription = null,
+                contentScale = ContentScale.Crop
+            )
+            //gelapkan sedikit agar teks & progress tetap terbaca di atas ilustrasi
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(Color.Black.copy(alpha = 0.15f), Color.Black.copy(alpha = 0.60f))
+                        )
+                    )
+            )
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                MaouLogoPulse(size = 80.dp)
                 Text(
                     text = BuildKeys.LAUNCHER_NAME,
                     style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = Color.White
                 )
                 MaouProgressBar(
                     modifier = Modifier.width(160.dp)
@@ -166,7 +178,7 @@ private fun LoadingScreen(
                 Text(
                     text = stringResource(R.string.maou_loading_text),
                     style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = Color.White.copy(alpha = 0.85f)
                 )
             }
         }

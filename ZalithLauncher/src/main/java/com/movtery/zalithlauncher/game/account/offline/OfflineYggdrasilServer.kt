@@ -167,9 +167,12 @@ class OfflineYggdrasilServer(
      */
     fun addCharacter(account: Account) {
         val skinFile = account.getSkinFile()
+        val capeFile = account.getCapeFile()
 
         val skinBytes = skinFile.takeIf { it.exists() }?.readBytes()
         val skinHash = skinBytes?.let { DigestUtils.digestToString("SHA-256", it) }
+        val capeBytes = capeFile.takeIf { it.exists() }?.readBytes()
+        val capeHash = capeBytes?.let { DigestUtils.digestToString("SHA-256", it) }
 
         val character = Character(
             uuid = account.profileId.replace("-", ""),
@@ -177,6 +180,8 @@ class OfflineYggdrasilServer(
             skin = LoadedSkin(
                 skinHash = skinHash,
                 skinBytes = skinBytes,
+                capeHash = capeHash,
+                capeBytes = capeBytes,
                 model = account.skinModelType
             )
         )
@@ -184,12 +189,39 @@ class OfflineYggdrasilServer(
         charactersByUuid[character.uuid.lowercase()] = character
         charactersByName[character.name.lowercase()] = character
 
-        Logger.info(TAG, "Added character ${character.name} (${character.uuid}), skin hash = ${character.skin?.skinHash}")
+        Logger.info(TAG, "Added character ${character.name} (${character.uuid}), skin hash = ${character.skin?.skinHash}, cape hash = ${character.skin?.capeHash}")
     }
 
+    /**
+     * [Maou] Tambahkan pemain lain (HP teman di hotspot) agar skin/cape-nya terlihat di game ini.
+     * Server LAN offline memberi UUID dari nama ("OfflinePlayer:nama"), sedangkan host memakai UUID
+     * akunnya sendiri, jadi karakter didaftarkan di kedua UUID.
+     */
+    fun addRemoteCharacter(
+        name: String,
+        uuid: String,
+        model: SkinModelType,
+        skinBytes: ByteArray?,
+        capeBytes: ByteArray?
+    ) {
+        val skin = LoadedSkin(
+            skinHash = skinBytes?.let { DigestUtils.digestToString("SHA-256", it) },
+            skinBytes = skinBytes,
+            capeHash = capeBytes?.let { DigestUtils.digestToString("SHA-256", it) },
+            capeBytes = capeBytes,
+            model = model
+        )
+        val offlineUuid = java.util.UUID.nameUUIDFromBytes("OfflinePlayer:$name".toByteArray(Charsets.UTF_8))
+            .toString().replace("-", "")
 
+        for (id in setOf(uuid.replace("-", ""), offlineUuid)) {
+            val character = Character(uuid = id, name = name, skin = skin)
+            charactersByUuid[id.lowercase()] = character
+        }
+        charactersByName[name.lowercase()] = Character(uuid = offlineUuid, name = name, skin = skin)
 
-
+        Logger.info(TAG, "Added remote character $name ($uuid / $offlineUuid)")
+    }
 
     private fun PublicKey.toPEMPublicKey(): String {
         val base64Key = Base64.getEncoder().encodeToString(this.encoded)

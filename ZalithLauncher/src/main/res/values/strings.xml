@@ -3073,6 +3073,23 @@
     <!-- Closing line of the guide card about editing actual key bindings in the Key section -->
     <string name="guide_joystick_events_events_text2">If you only want to control the game, just edit the actual key bindings in the \"Key\" section</string>
     <!-- Maou Launcher: mabar LAN lewat hotspot -->
+    <string name="maou_cape_import">Ganti Cape (file PNG)</string>
+    <string name="maou_cape_remove">Hapus Cape</string>
+    <string name="maou_cape_invalid">Cape tidak valid. Pakai PNG 64x32 / 22x17 (atau kelipatannya), maks 512 KB.</string>
+    <string name="maou_record_start">Rekam Layar (HD ringan)</string>
+    <string name="maou_record_stop">Berhenti Rekam</string>
+    <string name="maou_record_saved">Rekaman tersimpan: %1$s</string>
+    <string name="maou_fps_limit_title">Batas FPS Game</string>
+    <string name="maou_fps_limit_summary">Geser ke kiri = tanpa batas. 10-60 FPS membatasi game agar HP lebih dingin dan baterai awet. Berlaku di peluncuran berikutnya.</string>
+    <string name="maou_mabar_title">Mabar Hotspot</string>
+    <string name="maou_mabar_enable">Deteksi otomatis &amp; sinkron skin/cape (berlaku di peluncuran berikutnya)</string>
+    <string name="maou_mabar_copied">IP %1$s disalin</string>
+    <string name="maou_mabar_status_off">Belum aktif. Aktif otomatis saat game berjalan dengan opsi di atas menyala.</string>
+    <string name="maou_mabar_status_hosting">Dunia LAN kamu aktif di port %1$d. Teman cukup buka Multiplayer lalu pilih \"Mabar Hotspot\", tanpa ketik IP.</string>
+    <string name="maou_mabar_status_found">Host hotspot ditemukan: %1$s:%2$d</string>
+    <string name="maou_mabar_status_searching">Mencari host... Host: buka dunia, Esc, Open to LAN. Teman: sambungkan Wi-Fi ke hotspot host.</string>
+    <string name="maou_mabar_status_links">Tersambung lewat Mabar: %1$d</string>
+    <string name="maou_mabar_status_skins">Skin/cape tersinkron: %1$s</string>
     <string name="maou_lan_title">Mabar via Hotspot (2 HP)</string>
     <string name="maou_lan_summary">Main bareng tanpa kuota: cukup satu HP jadi hotspot</string>
     <string name="maou_lan_no_ip">Alamat IP belum terdeteksi. Nyalakan hotspot (HP host) atau sambungkan Wi-Fi (HP teman), lalu buka lagi.</string>

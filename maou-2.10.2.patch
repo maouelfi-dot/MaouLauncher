@@ -1,0 +1,143 @@
+diff --git a/.github/workflows/auto_release.yml b/.github/workflows/auto_release.yml
+index 95921df..f7eaa34 100644
+--- a/.github/workflows/auto_release.yml
++++ b/.github/workflows/auto_release.yml
+@@ -1,7 +1,8 @@
+ name: Auto Release APK
+ 
+-# [Maou] Setiap push ke main / cabang maou-* otomatis build APK lalu upload ke GitHub Release
+-# (tag otomatis build-<nomor>, ditandai pre-release). Release resmi tetap lewat tag v* (release_ci.yml).
++# [Maou] Setiap push ke main / cabang maou-*: build APK Release (arm + arm64 saja), lalu langsung
++# dirilis di GitHub Releases dengan tag v<versi> (versi dibaca dari ZalithLauncher/gradle.properties).
++# Push lagi dengan versi yang sama = APK di rilis itu ditimpa. Naikkan launcher_version_name untuk rilis baru.
+ on:
+   push:
+     branches:
+@@ -10,6 +11,10 @@ on:
+       - 'maou-*'
+   workflow_dispatch:
+ 
++concurrency:
++  group: auto-release-${{ github.ref }}
++  cancel-in-progress: true
++
+ permissions:
+   contents: write
+ 
+@@ -29,6 +34,16 @@ jobs:
+     runs-on: ubuntu-latest
+     if: success()
+     steps:
++      - name: Checkout
++        uses: actions/checkout@v6
++
++      - name: Read version
++        id: ver
++        run: |
++          version=$(grep -E '^launcher_version_name=' ZalithLauncher/gradle.properties | cut -d= -f2 | tr -d '[:space:]')
++          echo "version=$version" >> "$GITHUB_OUTPUT"
++          echo "Versi: $version"
++
+       - name: Download Files
+         uses: actions/download-artifact@v8
+         with:
+@@ -38,15 +53,23 @@ jobs:
+         run: |
+           mkdir -p ./apks
+           find ./artifacts -name "*.apk" -type f -exec cp {} ./apks/ \;
++          ls -la ./apks/
+           echo "Found $(ls ./apks/ | wc -l) APK file(s)"
+ 
+-      - name: Upload To Release
++      - name: Publish Release
+         uses: softprops/action-gh-release@v3
+         with:
+-          tag_name: build-${{ github.run_number }}
+-          name: Maou Launcher build ${{ github.run_number }}
++          tag_name: v${{ steps.ver.outputs.version }}
++          name: Maou Launcher ${{ steps.ver.outputs.version }}
+           target_commitish: ${{ github.sha }}
+-          prerelease: true
++          prerelease: false
++          make_latest: true
+           generate_release_notes: true
++          body: |
++            **Pilih APK yang sesuai HP kamu:**
++            - `arm64` -> HP 64-bit (hampir semua HP sekarang). Pilih yang ini kalau ragu.
++            - `arm` -> HP 32-bit lama.
++
++            Unduh cukup SATU APK saja. Cek ukuran file hasil unduhan sama dengan yang tertera di daftar Assets sebelum dipasang.
+           files: ./apks/*.apk
+           fail_on_unmatched_files: true
+diff --git a/.github/workflows/push_ci.yml b/.github/workflows/push_ci.yml
+index 79c6f6a..6651281 100644
+--- a/.github/workflows/push_ci.yml
++++ b/.github/workflows/push_ci.yml
+@@ -1,9 +1,8 @@
+ name: Build CI
+ 
++# [Maou] APK Debug TIDAK lagi dibuat otomatis di setiap push (ukurannya besar dan boros kuota unduh).
++# APK yang dipakai sehari-hari selalu versi Release dari auto_release.yml. Debug hanya kalau dijalankan manual.
+ on:
+-  push:
+-    branches:
+-      - '**'
+   workflow_dispatch:
+ 
+ jobs:
+@@ -15,4 +14,4 @@ jobs:
+       KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+       STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+       OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
+-      CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+\ No newline at end of file
++      CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+diff --git a/.github/workflows/release_ci.yml b/.github/workflows/release_ci.yml
+index 793cffc..a7183c7 100644
+--- a/.github/workflows/release_ci.yml
++++ b/.github/workflows/release_ci.yml
+@@ -1,19 +1,13 @@
+ name: Android CI
+ 
+ on:
+-  release:
+-    types:
+-      - published
+-  # [Maou] push a tag like v2.9.0 (or run manually) and the APKs are built and uploaded to a GitHub Release automatically
+-  push:
+-    tags:
+-      - 'v*'
++  # [Maou] Rilis normal sekarang lewat auto_release.yml. Workflow ini hanya manual (bila perlu rilis dengan tag sendiri).
+   workflow_dispatch:
+     inputs:
+       tag:
+-        description: 'Release tag, e.g. v2.9.0'
++        description: 'Release tag, e.g. v2.10.2'
+         required: true
+-        default: 'v2.9.0'
++        default: 'v2.10.2'
+ 
+ permissions:
+   contents: write
+diff --git a/ZalithLauncher/gradle.properties b/ZalithLauncher/gradle.properties
+index 58c6baa..15ae799 100644
+--- a/ZalithLauncher/gradle.properties
++++ b/ZalithLauncher/gradle.properties
+@@ -1,6 +1,6 @@
+ # launcher name & url
+ launcher_name=MaouLauncher
+-launcher_app_name=Maou Launcher Unofficial
++launcher_app_name=Maou Launcher
+ launcher_short_name=Maou
+ url_home=https://github.com/ZalithLauncher/ZalithLauncher2
+ 
+@@ -15,5 +15,5 @@ default_store_password=vh#nn%N(#eNjwfA78-77s6&f-cdd(@-7eana-e%!nhj%))!@c
+ default_key_password=sfv72ghSSNQaadf99-Q69!2
+ 
+ # launcher version
+-launcher_version_code=200110
+-launcher_version_name=2.10.1
+\ No newline at end of file
++launcher_version_code=200120
++launcher_version_name=2.10.2
+\ No newline at end of file

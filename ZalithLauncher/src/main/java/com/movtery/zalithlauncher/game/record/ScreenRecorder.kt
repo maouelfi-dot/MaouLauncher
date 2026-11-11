@@ -1,6 +1,6 @@
 /*
  * Maou Launcher - rekam layar ringan: MediaProjection + MediaRecorder (encoder H.264 hardware),
- * maks 1280x720 @30fps ~4 Mbps, tanpa audio. Tidak menambah beban CPU/GPU berarti.
+ * maks 1280x720 @30fps ~4 Mbps, video saja (tanpa mikrofon). Tidak menambah beban CPU/GPU berarti.
  */
 package com.movtery.zalithlauncher.game.record
 
@@ -37,6 +37,15 @@ object ScreenRecorder {
     var lastFile: File? = null
         private set
 
+    /** Waktu mulai rekam (ms, elapsedRealtime) untuk penunjuk durasi */
+    @Volatile
+    var startedAt: Long = 0L
+        private set
+
+    @Volatile
+    var withAudio: Boolean = false
+        private set
+
     @Synchronized
     fun start(context: Context, resultCode: Int, data: Intent): Boolean {
         if (_recording.value) return true
@@ -61,16 +70,43 @@ object ScreenRecorder {
             dir.mkdirs()
             val file = File(dir, "Maou_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".mp4")
 
-            @Suppress("DEPRECATION")
-            val rec = MediaRecorder().apply {
-                setVideoSource(MediaRecorder.VideoSource.SURFACE)
-                setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                setVideoEncodingBitRate(4_000_000)
-                setVideoFrameRate(30)
-                setVideoSize(w, h)
-                setOutputFile(file.absolutePath)
-                prepare()
+            //[Maou] mikrofon TIDAK dipakai (suara orang tidak ikut). Android 8.1 tidak bisa merekam suara game langsung.
+            val micGranted = false
+
+            fun buildRecorder(audio: Boolean): MediaRecorder {
+                @Suppress("DEPRECATION")
+                val r = MediaRecorder()
+                try {
+                    if (audio) r.setAudioSource(MediaRecorder.AudioSource.MIC)
+                    r.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+                    r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                    r.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                    r.setVideoEncodingBitRate(4_000_000)
+                    r.setVideoFrameRate(30)
+                    r.setVideoSize(w, h)
+                    if (audio) {
+                        r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
+                        r.setAudioEncodingBitRate(128_000)
+                        r.setAudioSamplingRate(44_100)
+                    }
+                    r.setOutputFile(file.absolutePath)
+                    r.prepare()
+                } catch (e: Throwable) {
+                    runCatching { r.release() }
+                    throw e
+                }
+                return r
+            }
+
+            var audioOn = micGranted
+            val rec = try {
+                buildRecorder(audioOn)
+            } catch (e: Throwable) {
+                if (!audioOn) throw e
+                //mikrofon sedang dipakai / tidak tersedia: tetap rekam video saja
+                Logger.warning(TAG, "Audio unavailable, recording video only", e)
+                audioOn = false
+                buildRecorder(false)
             }
             display = proj.createVirtualDisplay(
                 "MaouRec", w, h, metrics.densityDpi,
@@ -80,6 +116,8 @@ object ScreenRecorder {
             projection = proj
             recorder = rec
             lastFile = file
+            withAudio = audioOn
+            startedAt = android.os.SystemClock.elapsedRealtime()
             _recording.value = true
             Logger.info(TAG, "Recording ${w}x$h -> ${file.absolutePath}")
             true

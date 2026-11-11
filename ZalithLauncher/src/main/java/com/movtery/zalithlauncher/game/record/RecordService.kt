@@ -3,6 +3,9 @@ package com.movtery.zalithlauncher.game.record
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
+import android.app.PendingIntent
+import android.graphics.drawable.Icon
+import android.widget.Toast
 import android.app.Service
 import android.content.Context
 import android.content.Intent
@@ -24,7 +27,12 @@ class RecordService : Service() {
                 if (!ok) stopSelf()
             }
             else -> {
+                val file = ScreenRecorder.lastFile
+                val wasRecording = ScreenRecorder.recording.value
                 ScreenRecorder.stop()
+                if (wasRecording) {
+                    Toast.makeText(this, getString(com.movtery.zalithlauncher.R.string.maou_record_saved, file?.absolutePath ?: ""), Toast.LENGTH_LONG).show()
+                }
                 stopForeground(true)
                 stopSelf()
             }
@@ -45,7 +53,19 @@ class RecordService : Service() {
         } else {
             @Suppress("DEPRECATION") Notification.Builder(this)
         }
-        val n = builder.setSmallIcon(applicationInfo.icon).setContentTitle("Merekam layar...").setOngoing(true).build()
+        val stopPi = PendingIntent.getService(
+            this, 0, Intent(this, RecordService::class.java).setAction(ACTION_STOP),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        val stopAction = Notification.Action.Builder(
+            Icon.createWithResource(this, applicationInfo.icon), "Berhenti rekam", stopPi
+        ).build()
+        val n = builder.setSmallIcon(applicationInfo.icon)
+            .setContentTitle("Merekam layar...")
+            .setContentText("Ketuk Berhenti rekam untuk menyelesaikan")
+            .addAction(stopAction)
+            .setOngoing(true)
+            .build()
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(ID, n, ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PROJECTION)
         } else {

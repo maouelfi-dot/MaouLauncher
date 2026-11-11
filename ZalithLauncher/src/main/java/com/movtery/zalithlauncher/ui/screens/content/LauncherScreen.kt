@@ -20,6 +20,11 @@ package com.movtery.zalithlauncher.ui.screens.content
 
 import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.ui.input.pointer.PointerEventPass
+import androidx.compose.ui.input.pointer.changedToUp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -203,20 +208,11 @@ fun LauncherScreen(
                     Spacer(modifier = Modifier.weight(ActionMenuWeight))
                 }
 
-                val showStage = screenType != ScreenType.Tablet
                 Row(
                     modifier = Modifier
                         .weight(ContentWeight)
                         .offset { IntOffset(x = dragState.previewShift.value.roundToInt(), y = 0) }
                 ) {
-                    //菜单靠右时，玩家全身模型放在左侧；菜单靠左时放在右侧
-                    if (showStage && dockedSide == ActionMenuSide.END) {
-                        AccountStage(
-                            isVisible = isVisible,
-                            dockedSide = dockedSide,
-                            toAccountManageScreen = toAccountManageScreen
-                        )
-                    }
                     CompositionLocalProvider(
                         LocalUriHandler provides object : UriHandler {
                             override fun openUri(uri: String) {
@@ -237,13 +233,6 @@ fun LauncherScreen(
                             },
                             onQuickPlayServer = onQuickPlayServer,
                             onOpenVersionSettings = navigateToVersions
-                        )
-                    }
-                    if (showStage && dockedSide == ActionMenuSide.START) {
-                        AccountStage(
-                            isVisible = isVisible,
-                            dockedSide = dockedSide,
-                            toAccountManageScreen = toAccountManageScreen
                         )
                     }
                 }
@@ -314,102 +303,108 @@ private fun ContentMenu(
 }
 
 /**
- * 主页右侧（或左侧）的玩家全身模型舞台，仿基岩版主菜单：
- * 模型头顶带名牌，可左右拖动旋转，点击名牌进入账号管理。
+ * [Maou] Ketukan ringan pada karakter = buka ganti akun / skin.
+ * Hanya MENGAMATI sentuhan (tidak mengonsumsi), jadi geser-putar karakter tetap berfungsi.
  */
+private fun Modifier.observeTap(onTap: () -> Unit): Modifier = pointerInput(onTap) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+        val slop = viewConfiguration.touchSlop
+        var moved = false
+        while (true) {
+            val ev = awaitPointerEvent(PointerEventPass.Initial)
+            val c = ev.changes.firstOrNull { it.id == down.id } ?: break
+            if (ev.changes.size > 1 || (c.position - down.position).getDistance() > slop) moved = true
+            if (c.changedToUp()) {
+                if (!moved && c.uptimeMillis - down.uptimeMillis < 450L) onTap()
+                break
+            }
+        }
+    }
+}
+
+/** Karakter seluruh badan milik akun aktif (skin + jubah), dipakai di kartu kiri. */
 @Composable
-private fun AccountStage(
-    isVisible: Boolean,
+private fun AccountCharacter(
+    account: Account?,
     dockedSide: ActionMenuSide,
-    toAccountManageScreen: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onTap: () -> Unit,
 ) {
-    val ctx = rememberAnimatedContext(isVisible = isVisible)
-    val account by AccountsManager.currentAccountFlow.collectAsStateWithLifecycle()
     val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
     val yaw = Math.toRadians(
-        ((if (dockedSide == ActionMenuSide.START) -25.0 else 25.0) * (if (isRtl) -1 else 1))
+        ((if (dockedSide == ActionMenuSide.START) 30.0 else -30.0) * (if (isRtl) -1 else 1))
     ).toFloat()
-
     val armModel = account?.skinModelType?.toArmModel()
     val skinStamp = account?.getSkinFile()?.lastModified()
     val capeStamp = account?.getCapeFile()?.lastModified()
     val skinBytes by produceState<ByteArray?>(null, account, refreshWardrobe, skinStamp, armModel) {
         value = withContext(Dispatchers.IO) {
-            account?.getSkinFile()?.takeIf { it.exists() }
-                ?.inputStream()?.use { it.readBytes() }
+            account?.getSkinFile()?.takeIf { it.exists() }?.inputStream()?.use { it.readBytes() }
         }
     }
     val capeBytes by produceState<ByteArray?>(null, account, refreshWardrobe, capeStamp) {
         value = withContext(Dispatchers.IO) {
-            account?.getCapeFile()?.takeIf { it.exists() }
-                ?.inputStream()?.use { it.readBytes() }
+            account?.getCapeFile()?.takeIf { it.exists() }?.inputStream()?.use { it.readBytes() }
         }
     }
-
-    Column(
-        modifier = modifier
-            .width(StageWidth)
-            .fillMaxHeight()
-            .animated(ctx, from = AnimatedDirection.Bottom)
-            .padding(vertical = 8.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        //名牌：半透明黑底白字，与游戏内名牌一致
-        Surface(
-            modifier = Modifier
-                .guideNode(
-                    key = GuideKeys.Main.Step.Account,
-                    preferSide = GuideSide.Below,
-                    holeRadius = 20.dp
-                )
-                .clip(RoundedCornerShape(6.dp))
-                .clickable(onClick = toAccountManageScreen),
-            shape = RoundedCornerShape(6.dp),
-            color = Color.Black.copy(alpha = 0.55f),
-            contentColor = Color.White
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = account?.username ?: stringResource(R.string.account_add_new_account),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                account?.let {
-                    Text(
-                        text = getAccountTypeName(it),
-                        maxLines = 1,
-                        style = MaterialTheme.typography.labelSmall,
-                        color = Color.White.copy(alpha = 0.75f)
-                    )
-                }
-            }
-        }
-
-        //全身模型，可拖动旋转（gaze 关闭以省电省 CPU）
-        PetModelView(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth(),
-            skin = skinBytes,
-            cape = capeBytes,
-            arm = armModel,
-            yaw = yaw,
-            animation = PetAnimation.Idle,
-            tapReaction = PetTapReaction.Interact,
-            dragYaw = true,
-            gazeEnabled = false
-        )
-    }
+    PetModelView(
+        modifier = modifier.observeTap(onTap),
+        skin = skinBytes,
+        cape = capeBytes,
+        arm = armModel,
+        yaw = yaw,
+        animation = PetAnimation.Idle,
+        tapReaction = PetTapReaction.Interact,
+        dragYaw = true,
+        gazeEnabled = false
+    )
 }
 
-private val StageWidth = 150.dp
+/** [Maou] Name tag tanpa kotak hitam: nama dengan cahaya ungu + lencana tipe akun berbingkai tipis. */
+@Composable
+private fun AccountNameTag(
+    account: Account?,
+    modifier: Modifier = Modifier,
+) {
+    val accent = MaterialTheme.colorScheme.primary
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = account?.username ?: stringResource(R.string.account_add_new_account),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = MaterialTheme.typography.titleMedium.copy(
+                shadow = androidx.compose.ui.graphics.Shadow(
+                    color = accent.copy(alpha = 0.9f),
+                    offset = androidx.compose.ui.geometry.Offset(0f, 2f),
+                    blurRadius = 18f
+                )
+            ),
+            fontWeight = FontWeight.ExtraBold,
+            color = Color.White
+        )
+        account?.let {
+            Surface(
+                modifier = Modifier.padding(top = 3.dp),
+                shape = androidx.compose.foundation.shape.CircleShape,
+                color = Color.Transparent,
+                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.85f)),
+                contentColor = Color.White.copy(alpha = 0.92f)
+            ) {
+                Text(
+                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 1.dp),
+                    text = getAccountTypeName(it),
+                    maxLines = 1,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
+        }
+    }
+}
 
 @Composable
 private fun AccountAvatarRow(
@@ -578,6 +573,7 @@ private fun VersionsContent(
 private fun ActionMenuCardContent(
     modifier: Modifier = Modifier,
     account: Account?,
+    dockedSide: ActionMenuSide,
     onLaunchGame: (Version?) -> Unit,
     toAccountManageScreen: () -> Unit,
     toVersionManageScreen: () -> Unit,
@@ -590,17 +586,33 @@ private fun ActionMenuCardContent(
             .then(modifier),
         shape = MaterialTheme.shapes.extraLarge
     ) {
-        ConstraintLayout(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            val (versionManagerLayout) = createRefs()
-
+        Column(modifier = Modifier.fillMaxSize()) {
+            //[Maou] karakter menyatu di dalam kartu; ketuk karakter = ganti akun / skin
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+            ) {
+                AccountCharacter(
+                    account = account,
+                    dockedSide = dockedSide,
+                    modifier = Modifier.fillMaxSize(),
+                    onTap = toAccountManageScreen
+                )
+                AccountNameTag(
+                    account = account,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 10.dp, start = 8.dp, end = 8.dp)
+                        .guideNode(
+                            key = GuideKeys.Main.Step.Account,
+                            preferSide = GuideSide.Below,
+                            holeRadius = 20.dp
+                        )
+                )
+            }
             VersionsContent(
-                modifier = Modifier.constrainAs(versionManagerLayout) {
-                    start.linkTo(parent.start)
-                    end.linkTo(parent.end)
-                    bottom.linkTo(parent.bottom)
-                },
+                modifier = Modifier.fillMaxWidth(),
                 onLaunchGame = onLaunchGame,
                 toVersionManageScreen = toVersionManageScreen,
                 toVersionSettingsScreen = toVersionSettingsScreen,
@@ -656,7 +668,8 @@ private fun ActionMenuTallerContent(
         PetModelView(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth(),
+                .fillMaxWidth()
+                .observeTap(toAccountManageScreen),
             skin = skinBytes,
             cape = capeBytes,
             arm = armModel,
@@ -734,6 +747,7 @@ private fun ActionMenu(
         ActionMenuCardContent(
             modifier = contentModifier,
             account = account,
+            dockedSide = dockedSide,
             onLaunchGame = onLaunchGame,
             toAccountManageScreen = toAccountManageScreen,
             toVersionManageScreen = toVersionManageScreen,

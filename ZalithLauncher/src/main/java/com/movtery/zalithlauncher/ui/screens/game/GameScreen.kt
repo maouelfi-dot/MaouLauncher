@@ -40,6 +40,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import com.movtery.zalithlauncher.game.record.ScreenRecorder
+import com.movtery.zalithlauncher.ui.screens.game.elements.RecordingIndicator
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -583,6 +585,8 @@ fun GameScreen(
     }
     val editorViewModel = rememberEditorViewModel("ControlEditor_Times=${viewModel.editorRefresh}")
     val cursorMode by ZLBridgeStates.cursorMode.collectAsStateWithLifecycle()
+    //[Maou] saat merekam: kontrol layar & tombol menu melayang disembunyikan (tetap berfungsi) agar tidak terekam
+    val isRecording by ScreenRecorder.recording.collectAsStateWithLifecycle()
     val isGrabbing = remember(cursorMode) {
         cursorMode == CURSOR_DISABLED
     }
@@ -672,7 +676,7 @@ fun GameScreen(
                 observedLayout = viewModel.observableLayout,
                 eventHandler = viewModel.eventHandler,
                 checkOccupiedPointers = { viewModel.occupiedPointers.contains(it) },
-                opacity = { (AllSettings.controlsOpacity.state.toFloat() / 100f).coerceIn(0f, 1f) },
+                opacity = { if (isRecording) 0f else (AllSettings.controlsOpacity.state.toFloat() / 100f).coerceIn(0f, 1f) },
                 markPointerAsMoveOnly = { viewModel.moveOnlyPointers.add(it) },
                 onOccupiedPointer = { viewModel.occupiedPointers.add(it) },
                 onReleasePointer = { viewModel.occupiedPointers.remove(it) },
@@ -839,11 +843,18 @@ fun GameScreen(
                     fpsMin = { viewModel.fpsMin },
                     showMemory = AllSettings.showMemory.state,
                     opened = viewModel.gameMenuState == MenuState.SHOW,
-                    alpha = AllSettings.menuBallOpacity.state / 100f,
+                    alpha = if (isRecording) 0f else AllSettings.menuBallOpacity.state / 100f,
                     onClick = {
                         viewModel.switchMenu()
                     }
                 )
+            }
+        }
+
+        //[Maou] penanda sedang merekam
+        if (isRecording) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                RecordingIndicator(modifier = Modifier.align(Alignment.TopStart))
             }
         }
     }

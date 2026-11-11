@@ -4,7 +4,6 @@ import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
@@ -29,7 +28,7 @@ fun ScreenRecordButton(
     val context = LocalContext.current
     val recording by ScreenRecorder.recording.collectAsState()
 
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+    val projectionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         val data = result.data
         if (result.resultCode == Activity.RESULT_OK && data != null) {
             val intent = Intent(context, RecordService::class.java)
@@ -40,20 +39,19 @@ fun ScreenRecordButton(
         }
     }
 
+    fun askProjection() {
+        val mgr = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        projectionLauncher.launch(mgr.createScreenCaptureIntent())
+    }
+
     MenuTextButton(
         modifier = modifier,
         text = stringResource(if (recording) R.string.maou_record_stop else R.string.maou_record_start),
         onClick = {
             if (recording) {
                 context.startService(Intent(context, RecordService::class.java).setAction(RecordService.ACTION_STOP))
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.maou_record_saved, ScreenRecorder.lastFile?.absolutePath ?: ""),
-                    Toast.LENGTH_LONG
-                ).show()
             } else {
-                val mgr = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-                launcher.launch(mgr.createScreenCaptureIntent())
+                askProjection()
             }
         },
         color = color,

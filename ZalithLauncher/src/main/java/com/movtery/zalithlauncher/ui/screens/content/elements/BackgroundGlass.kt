@@ -326,8 +326,8 @@ private class BackgroundCaptureNode(
                         val started = System.nanoTime()
                         store.captureGlassFrame()
                         val elapsedMs = (System.nanoTime() - started) / 1_000_000L
-                        //[Maou] 16ms/frame terlalu berat di HP lama (blur+capture tiap frame = lag scroll). Cukup ~4 fps.
-                        delay((250L - elapsedMs).coerceAtLeast(0L).milliseconds)
+                        //[Maou] 16ms/frame terlalu berat di HP lama (blur+capture tiap frame = lag scroll). Cukup ~1.5 fps (hemat baterai).
+                        delay((600L - elapsedMs).coerceAtLeast(0L).milliseconds)
                     }
                 }
             }

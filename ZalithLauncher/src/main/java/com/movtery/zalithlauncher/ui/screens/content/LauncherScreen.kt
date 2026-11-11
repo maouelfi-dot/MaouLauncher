@@ -28,6 +28,12 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -197,28 +203,49 @@ fun LauncherScreen(
                     Spacer(modifier = Modifier.weight(ActionMenuWeight))
                 }
 
-                CompositionLocalProvider(
-                    LocalUriHandler provides object : UriHandler {
-                        override fun openUri(uri: String) {
-                            onOpenLink(uri)
-                        }
-                    }
-                ) {
-                ContentMenu(
+                val showStage = screenType != ScreenType.Tablet
+                Row(
                     modifier = Modifier
-                        .guideNode(
-                            key = GuideKeys.Main.Step.CardTip,
-                            holeRadius = 0.dp
-                        )
                         .weight(ContentWeight)
-                        .offset { IntOffset(x = dragState.previewShift.value.roundToInt(), y = 0) },
-                    isVisible = isVisible,
-                    onLaunchGame = { version ->
-                        onLaunchGame(version)
-                    },
-                    onQuickPlayServer = onQuickPlayServer,
-                    onOpenVersionSettings = navigateToVersions
-                )
+                        .offset { IntOffset(x = dragState.previewShift.value.roundToInt(), y = 0) }
+                ) {
+                    //菜单靠右时，玩家全身模型放在左侧；菜单靠左时放在右侧
+                    if (showStage && dockedSide == ActionMenuSide.END) {
+                        AccountStage(
+                            isVisible = isVisible,
+                            dockedSide = dockedSide,
+                            toAccountManageScreen = toAccountManageScreen
+                        )
+                    }
+                    CompositionLocalProvider(
+                        LocalUriHandler provides object : UriHandler {
+                            override fun openUri(uri: String) {
+                                onOpenLink(uri)
+                            }
+                        }
+                    ) {
+                        ContentMenu(
+                            modifier = Modifier
+                                .guideNode(
+                                    key = GuideKeys.Main.Step.CardTip,
+                                    holeRadius = 0.dp
+                                )
+                                .weight(1f),
+                            isVisible = isVisible,
+                            onLaunchGame = { version ->
+                                onLaunchGame(version)
+                            },
+                            onQuickPlayServer = onQuickPlayServer,
+                            onOpenVersionSettings = navigateToVersions
+                        )
+                    }
+                    if (showStage && dockedSide == ActionMenuSide.START) {
+                        AccountStage(
+                            isVisible = isVisible,
+                            dockedSide = dockedSide,
+                            toAccountManageScreen = toAccountManageScreen
+                        )
+                    }
                 }
 
                 // ActionMenu 对接到了 End，留出空位
@@ -286,54 +313,103 @@ private fun ContentMenu(
     }
 }
 
+/**
+ * 主页右侧（或左侧）的玩家全身模型舞台，仿基岩版主菜单：
+ * 模型头顶带名牌，可左右拖动旋转，点击名牌进入账号管理。
+ */
 @Composable
-private fun AccountAvatarCenter(
-    modifier: Modifier = Modifier,
-    account: Account?,
-    refreshKey: Any? = null,
-    onClick: () -> Unit = {}
+private fun AccountStage(
+    isVisible: Boolean,
+    dockedSide: ActionMenuSide,
+    toAccountManageScreen: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .clip(shape = MaterialTheme.shapes.extraLarge)
-            .clickable(onClick = onClick)
-    ) {
-        Column(
-            modifier = Modifier.padding(all = 12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (account != null) {
-                PlayerFace(
-                    account = account,
-                    avatarSize = 64.dp,
-                    refreshKey = refreshKey
-                )
-            } else {
-                Icon(
-                    modifier = Modifier.size(40.dp),
-                    painter = painterResource(R.drawable.ic_add),
-                    contentDescription = null
-                )
-            }
+    val ctx = rememberAnimatedContext(isVisible = isVisible)
+    val account by AccountsManager.currentAccountFlow.collectAsStateWithLifecycle()
+    val refreshWardrobe by AccountsManager.refreshWardrobe.collectAsStateWithLifecycle()
+    val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
+    val yaw = Math.toRadians(
+        ((if (dockedSide == ActionMenuSide.START) -25.0 else 25.0) * (if (isRtl) -1 else 1))
+    ).toFloat()
 
+    val armModel = account?.skinModelType?.toArmModel()
+    val skinStamp = account?.getSkinFile()?.lastModified()
+    val capeStamp = account?.getCapeFile()?.lastModified()
+    val skinBytes by produceState<ByteArray?>(null, account, refreshWardrobe, skinStamp, armModel) {
+        value = withContext(Dispatchers.IO) {
+            account?.getSkinFile()?.takeIf { it.exists() }
+                ?.inputStream()?.use { it.readBytes() }
+        }
+    }
+    val capeBytes by produceState<ByteArray?>(null, account, refreshWardrobe, capeStamp) {
+        value = withContext(Dispatchers.IO) {
+            account?.getCapeFile()?.takeIf { it.exists() }
+                ?.inputStream()?.use { it.readBytes() }
+        }
+    }
+
+    Column(
+        modifier = modifier
+            .width(StageWidth)
+            .fillMaxHeight()
+            .animated(ctx, from = AnimatedDirection.Bottom)
+            .padding(vertical = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        //名牌：半透明黑底白字，与游戏内名牌一致
+        Surface(
+            modifier = Modifier
+                .guideNode(
+                    key = GuideKeys.Main.Step.Account,
+                    preferSide = GuideSide.Below,
+                    holeRadius = 20.dp
+                )
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(onClick = toAccountManageScreen),
+            shape = RoundedCornerShape(6.dp),
+            color = Color.Black.copy(alpha = 0.55f),
+            contentColor = Color.White
+        ) {
             Column(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
                     text = account?.username ?: stringResource(R.string.account_add_new_account),
                     maxLines = 1,
-                    style = MaterialTheme.typography.titleSmall
+                    overflow = TextOverflow.Ellipsis,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold
                 )
-                if (account != null) {
+                account?.let {
                     Text(
-                        text = getAccountTypeName(account),
-                        style = MaterialTheme.typography.labelSmall
+                        text = getAccountTypeName(it),
+                        maxLines = 1,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.75f)
                     )
                 }
             }
         }
+
+        //全身模型，可拖动旋转（gaze 关闭以省电省 CPU）
+        PetModelView(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            skin = skinBytes,
+            cape = capeBytes,
+            arm = armModel,
+            yaw = yaw,
+            animation = PetAnimation.Idle,
+            tapReaction = PetTapReaction.Interact,
+            dragYaw = true,
+            gazeEnabled = false
+        )
     }
 }
+
+private val StageWidth = 150.dp
 
 @Composable
 private fun AccountAvatarRow(
@@ -517,22 +593,7 @@ private fun ActionMenuCardContent(
         ConstraintLayout(
             modifier = Modifier.fillMaxSize()
         ) {
-            val (accountAvatar, versionManagerLayout) = createRefs()
-
-            AccountAvatarCenter(
-                modifier = Modifier
-                    .constrainAs(accountAvatar) {
-                        top.linkTo(parent.top)
-                        bottom.linkTo(versionManagerLayout.top)
-                        start.linkTo(parent.start)
-                        end.linkTo(parent.end)
-                    }.guideNode(
-                        key = GuideKeys.Main.Step.Account,
-                        preferSide = GuideSide.Below
-                    ),
-                account = account,
-                onClick = toAccountManageScreen
-            )
+            val (versionManagerLayout) = createRefs()
 
             VersionsContent(
                 modifier = Modifier.constrainAs(versionManagerLayout) {

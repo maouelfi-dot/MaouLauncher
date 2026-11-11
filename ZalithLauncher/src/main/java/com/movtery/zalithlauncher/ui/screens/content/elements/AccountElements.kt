@@ -1469,6 +1469,38 @@ fun ChangeSkinDialog(
             uri?.let(onSkinPicked)
         }
 
+    //[Maou] cape lokal untuk akun offline: dipilih dari file PNG, ikut terlihat oleh pemain lain via Mabar
+    val localContext = LocalContext.current
+    var localCape by remember { mutableStateOf<ByteArray?>(null) }
+    var resetLocalCape by remember { mutableStateOf(false) }
+    val capePicker =
+        rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+            uri ?: return@rememberLauncherForActivityResult
+            val bytes = runCatching {
+                localContext.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+            }.getOrNull()
+            if (bytes != null && isValidCapePng(bytes)) {
+                localCape = bytes
+                resetLocalCape = false
+            } else {
+                android.widget.Toast.makeText(
+                    localContext,
+                    localContext.getString(R.string.maou_cape_invalid),
+                    android.widget.Toast.LENGTH_LONG
+                ).show()
+            }
+        }
+    val localPreviewCape by produceState<ByteArray?>(null, localCape, resetLocalCape) {
+        value = withContext(Dispatchers.IO) {
+            when {
+                localCape != null -> localCape
+                resetLocalCape -> null
+                else -> account.getCapeFile().takeIf { it.exists() }
+                    ?.let { runCatching { it.readBytes() }.getOrNull() }
+            }
+        }
+    }
+
     // 皮肤状态变化时重载预览皮肤
     val previewSkin by produceState<ByteArray?>(null, skinState) {
         value = withContext(Dispatchers.IO) {
@@ -1537,7 +1569,7 @@ fun ChangeSkinDialog(
                             PetModelView(
                                 modifier = Modifier.fillMaxSize(),
                                 skin = previewSkin,
-                                cape = previewCape,
+                                cape = if (account.isLocalAccount()) localPreviewCape else previewCape,
                                 arm = previewArm,
                                 animation = PetAnimation.Walking,
                                 animationSpeed = 0.8f,
@@ -1656,6 +1688,39 @@ fun ChangeSkinDialog(
                                 )
                             }
 
+                            //[Maou] 离线账号：自定义披风（从 PNG 文件）
+                            if (account.isLocalAccount()) {
+                                InfoLayoutTextItem(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    title = stringResource(R.string.maou_cape_import),
+                                    icon = {
+                                        Icon(
+                                            modifier = Modifier.size(22.dp),
+                                            painter = painterResource(R.drawable.ic_styler),
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = { capePicker.launch(arrayOf("image/png")) }
+                                )
+                                if (localCape != null || (!resetLocalCape && account.getCapeFile().exists())) {
+                                    InfoLayoutTextItem(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        title = stringResource(R.string.maou_cape_remove),
+                                        icon = {
+                                            Icon(
+                                                modifier = Modifier.size(22.dp),
+                                                painter = painterResource(R.drawable.ic_restart_alt),
+                                                contentDescription = null
+                                            )
+                                        },
+                                        onClick = {
+                                            localCape = null
+                                            resetLocalCape = true
+                                        }
+                                    )
+                                }
+                            }
+
                             //离线账号重置皮肤
                             if (account.isLocalAccount() && account.hasSkinFile && skinState != ChangeSkin.ResetSkin) {
                                 InfoLayoutTextItem(
@@ -1689,7 +1754,8 @@ fun ChangeSkinDialog(
 
                         Button(
                             modifier = Modifier.weight(1f),
-                            enabled = skinState != ChangeSkin.None || capeState != ChangeCape.None,
+                            enabled = skinState != ChangeSkin.None || capeState != ChangeCape.None ||
+                                localCape != null || resetLocalCape,
                             onClick = {
                                 when (skinState) {
                                     is ChangeSkin.ChangeSkinData -> {
@@ -1705,6 +1771,22 @@ fun ChangeSkinDialog(
 
                                 if (capeState is ChangeCape.ChangeCapeData) {
                                     onApplyCape(capeState.cape)
+                                }
+
+                                //[Maou] simpan / hapus cape lokal akun offline
+                                if (account.isLocalAccount()) {
+                                    runCatching {
+                                        val capeFile = account.getCapeFile()
+                                        val pending = localCape
+                                        if (pending != null) {
+                                            capeFile.parentFile?.mkdirs()
+                                            capeFile.writeBytes(pending)
+                                            AccountsManager.refreshWardrobe()
+                                        } else if (resetLocalCape && capeFile.exists()) {
+                                            capeFile.delete()
+                                            AccountsManager.refreshWardrobe()
+                                        }
+                                    }
                                 }
 
                                 onDismissRequest()
@@ -1966,4 +2048,19 @@ private fun getSkinAvatar(
         avatarPaint
     )
     return avatar
+}
+
+/**
+ * [Maou] Cape Minecraft valid: 64x32 (atau kelipatannya), 22x17 (kelipatannya), atau 46x22 (OptiFine), maks 512 KB.
+ */
+private fun isValidCapePng(bytes: ByteArray): Boolean {
+    if (bytes.size > 512 * 1024) return false
+    val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+    BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+    val w = options.outWidth
+    val h = options.outHeight
+    if (w <= 0 || h <= 0 || w > 2048) return false
+    return (w % 64 == 0 && h == w / 2) ||
+        (w % 22 == 0 && h == w / 22 * 17) ||
+        (w % 46 == 0 && h == w / 46 * 22)
 }

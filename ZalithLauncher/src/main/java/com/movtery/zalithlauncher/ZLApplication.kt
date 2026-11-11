@@ -148,5 +148,20 @@ class ZLApplication : Application(), SingletonImageLoader.Factory {
     private fun initializeData() {
         AccountsManager.initialize(this)
         GamePathManager.initialize(this)
+
+        //[Maou] latar default: ilustrasi anime HD (hanya sekali; jika pengguna menghapus/menggantinya, tidak dipasang ulang)
+        runCatching {
+            val marker = java.io.File(PathManager.DIR_FILES_PRIVATE, ".maou_default_bg_seeded")
+            if (!marker.exists()) {
+                val bg = PathManager.FILE_LAUNCHER_BACKGROUND
+                if (!bg.exists()) {
+                    bg.parentFile?.mkdirs()
+                    assets.open("default_background.webp").use { input ->
+                        bg.outputStream().use { input.copyTo(it) }
+                    }
+                }
+                marker.createNewFile()
+            }
+        }
     }
 }

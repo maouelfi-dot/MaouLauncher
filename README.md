@@ -29,7 +29,7 @@
 
 ## Unduh
 
-Unduh APK dari halaman **[Releases](https://github.com/maouelfi-dot/ZalithLauncher2/releases)**:
+Unduh APK dari halaman **[Releases](https://github.com/maouelfi-dot/MaouLauncher/releases)**:
 
 | File | Untuk |
 |------|-------|
@@ -43,7 +43,7 @@ Maou Launcher memakai ID paket sendiri (`com.maou.launcher`), jadi terpasang ber
 Kebutuhan: JDK 21, Android SDK (min API 26, target API 35), Android NDK, Rust toolchain dengan `cargo-ndk`.
 
 ```bash
-git clone https://github.com/maouelfi-dot/ZalithLauncher2.git
+git clone https://github.com/maouelfi-dot/MaouLauncher.git
 cd ZalithLauncher2
 ./gradlew :ZalithLauncher:assembleRelease -Darch=arm64
 ```

@@ -127,6 +127,7 @@ class MainActivity : BaseAppCompatActivity() {
     override fun isIgnoreNotch(): Boolean = AllSettings.launcherFullScreen.getValue()
 
     override fun dispatchTouchEvent(event: MotionEvent): Boolean {
+        com.movtery.zalithlauncher.ui.components.UiTouchClock.touch()
         FestivalTapObserver.observe(event)
         PetGazeRouter.onTouchEvent(event)
         return super.dispatchTouchEvent(event)

@@ -86,6 +86,7 @@ import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -1103,7 +1104,9 @@ private fun ModsList(
             }
 
             val list = modsList ?: emptyList()
-            items(list) { mod ->
+            //[Maou] satu HashSet untuk semua item (bukan List.contains per item) + key stabil
+            val selectedSet = selectedMods.toHashSet()
+            items(list, key = { it.localMod.file.absolutePath }, contentType = { "mod" }) { mod ->
                 ModItemLayout(
                     modifier = Modifier.fillMaxWidth(),
                     mod = mod,
@@ -1115,7 +1118,7 @@ private fun ModsList(
                     },
                     onClick = {
                         //仅加载了项目信息的模组允许被选择
-                        if (selectedMods.contains(mod)) {
+                        if (selectedSet.contains(mod)) {
                             removeFromSelected(mod)
                         } else {
                             addToSelected(mod)
@@ -1131,7 +1134,7 @@ private fun ModsList(
                     onDelete = {
                         onDelete(mod)
                     },
-                    selected = selectedMods.contains(mod)
+                    selected = selectedSet.contains(mod)
                 )
             }
         }
@@ -1169,15 +1172,6 @@ private fun ModItemLayout(
     borderColor: Color = MaterialTheme.colorScheme.primary,
     shape: Shape = MaterialTheme.shapes.large,
 ) {
-    val borderWidth by animateDpAsState(
-        if (selected) 2.dp
-        else (-1).dp
-    )
-
-    val scale = remember { Animatable(initialValue = 1f) }
-    LaunchedEffect(Unit) {
-        scale.animateTo(targetValue = 1f, animationSpec = getAnimateTween())
-    }
     val context = LocalContext.current
 
     val projectInfo = mod.projectInfo
@@ -1189,12 +1183,7 @@ private fun ModItemLayout(
 
     Surface(
         modifier = modifier
-            .graphicsLayer(scaleY = scale.value, scaleX = scale.value)
-            .border(
-                width = borderWidth,
-                color = borderColor,
-                shape = shape
-            ),
+            .then(if (selected) Modifier.border(2.dp, borderColor, shape) else Modifier),
         onClick = onClick,
         shape = shape,
         color = itemColor,
@@ -1226,14 +1215,12 @@ private fun ModItemLayout(
             val titleAlpha = if (isDisabled) 0.8f else 1f
 
             //模组简要信息
-            Crossfade(
+            Box(
                 modifier = Modifier
                     .align(Alignment.CenterVertically)
-                    .weight(1f),
-                //在本地是否为未知文件
-                targetState = mod.localMod.notMod && projectInfo == null,
-                label = "ModItemInfoCrossfade"
-            ) { isUnknown ->
+                    .weight(1f)
+            ) {
+                val isUnknown = mod.localMod.notMod && projectInfo == null
                 Column(
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
@@ -1261,12 +1248,11 @@ private fun ModItemLayout(
                         }
                         else -> {
                             Row(
-                                modifier = Modifier.height(IntrinsicSize.Max),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 val displayTitle = if (projectInfo != null) {
                                     val title = projectInfo.title
-                                    mod.mcMod?.getMcmodTitle(title, context) ?: title
+                                    remember(projectInfo, mod.mcMod) { mod.mcMod?.getMcmodTitle(title, context) ?: title }
                                 } else {
                                     localMod.name
                                 }
@@ -1274,8 +1260,7 @@ private fun ModItemLayout(
                                     modifier = Modifier
                                         .alpha(titleAlpha)
                                         .weight(1f, fill = false)
-                                        .basicMarquee(iterations = 1)
-                                        .animateContentSize(),
+                                        .basicMarquee(iterations = 1),
                                     text = displayTitle,
                                     style = MaterialTheme.typography.titleSmall,
                                     textDecoration = titleDecoration,
@@ -1285,9 +1270,7 @@ private fun ModItemLayout(
 
                                 Row(
                                     modifier = Modifier
-                                        .padding(start = 8.dp)
-                                        .basicMarquee(iterations = 1)
-                                        .animateContentSize(),
+                                        .padding(start = 8.dp),
                                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                                 ) {
                                     val remoteLoaders = mod.remoteFile?.loaders
@@ -1394,11 +1377,11 @@ private fun ModIcon(
     iconSize: Dp,
 ) {
     Box(modifier = modifier) {
-        val colorMatrix = remember(mod, mod.localMod.file) { ColorMatrix() }
-        colorMatrix.setToSaturation(
-            if (mod.localMod.file.isDisabled()) 0f
-            else 1f
-        )
+        //[Maou] tanpa filter warna untuk mod aktif (hemat GPU); filter hanya untuk mod nonaktif
+        val disabled = mod.localMod.file.isDisabled()
+        val grayFilter = remember(disabled) {
+            if (disabled) ColorFilter.colorMatrix(ColorMatrix().apply { setToSaturation(0f) }) else null
+        }
 
         val projectInfo = mod.projectInfo
         if (projectInfo == null) {
@@ -1407,7 +1390,7 @@ private fun ModIcon(
                     modifier = Modifier.size(iconSize),
                     modloader = mod.localMod.loader,
                     defaultIcon = R.drawable.ic_unknown_pack,
-                    colorFilter = ColorFilter.colorMatrix(colorMatrix),
+                    colorFilter = grayFilter,
 
                 )
             } else {
@@ -1415,14 +1398,16 @@ private fun ModIcon(
                     modifier = Modifier.size(iconSize),
                     triggerRefresh = mod,
                     icon = mod.localMod.icon,
-                    colorFilter = ColorFilter.colorMatrix(colorMatrix),
+                    cacheKey = "modicon:${mod.localMod.file.absolutePath}:${System.identityHashCode(mod.localMod.icon)}",
+                    sizePx = with(LocalDensity.current) { iconSize.roundToPx() },
+                    colorFilter = grayFilter,
                 )
             }
         } else {
             AddonIcon(
                 iconUrl = projectInfo.iconUrl,
                 size = iconSize,
-                colorFilter = ColorFilter.colorMatrix(colorMatrix)
+                colorFilter = grayFilter
             )
         }
     }

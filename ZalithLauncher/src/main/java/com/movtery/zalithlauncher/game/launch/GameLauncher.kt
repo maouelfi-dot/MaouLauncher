@@ -34,6 +34,7 @@ import com.movtery.zalithlauncher.context.readAssetFile
 import com.movtery.zalithlauncher.game.account.Account
 import com.movtery.zalithlauncher.game.account.AccountType
 import com.movtery.zalithlauncher.game.account.offline.OfflineYggdrasilServer
+import com.movtery.zalithlauncher.game.mabar.MabarLan
 import com.movtery.zalithlauncher.game.addons.modloader.ModLoader
 import com.movtery.zalithlauncher.game.download.game.parseLibraryComponents
 import com.movtery.zalithlauncher.game.multirt.Runtime
@@ -100,6 +101,7 @@ class GameLauncher(
     }
 
     override fun exit() {
+        MabarLan.stop()
         offlineServer.stop()
     }
 
@@ -268,6 +270,21 @@ class GameLauncher(
                 getCacioJavaArgs(screenSize, isJava8)
             }
         ).getAllArgs()
+
+        //[Maou] Mabar Hotspot: deteksi host otomatis + sinkron skin/cape antar pemain
+        MabarLan.start(
+            context = activity,
+            gameDir = gameDirPath,
+            account = usingAccount,
+            skinServer = offlineServer.takeIf { it.getPort() != null }
+        )
+
+        LowRamTweaks.applyFpsLimit(gameDirPath, AllSettings.fpsLimit.getValue())
+
+        //[Maou] HP RAM < 3 GB: kurangi beban CPU saat memuat chunk besar (sekali per folder game)
+        if (com.movtery.zalithlauncher.utils.platform.getTotalMemory(activity) / (1024 * 1024) < 3072) {
+            LowRamTweaks.applyOnce(gameDirPath)
+        }
 
         tryStartTouchProxy()
 

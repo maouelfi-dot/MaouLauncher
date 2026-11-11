@@ -688,6 +688,24 @@ private fun MabarHotspotCard(
             }
         }
 
+        //IP:PORT asli dunia LAN ini (otomatis akurat), ketuk untuk menyalin
+        val hostBest = state.bestIp
+        val hostPort = state.ownLanPort
+        if (state.running && hostBest != null && hostPort != null) {
+            MenuTextButton(
+                modifier = Modifier.fillMaxWidth(),
+                text = "$hostBest:$hostPort",
+                onClick = {
+                    val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                        as? android.content.ClipboardManager
+                    cm?.setPrimaryClip(android.content.ClipData.newPlainText("IP:PORT", "$hostBest:$hostPort"))
+                    Toast.makeText(context, context.getString(R.string.maou_mabar_copied, "$hostBest:$hostPort"), Toast.LENGTH_SHORT).show()
+                },
+                color = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            )
+        }
+
         val lines = buildList {
             if (!state.running) {
                 add(stringResource(R.string.maou_mabar_status_off))

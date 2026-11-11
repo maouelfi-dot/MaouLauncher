@@ -596,7 +596,10 @@ private fun ActionMenuCardContent(
                 AccountCharacter(
                     account = account,
                     dockedSide = dockedSide,
-                    modifier = Modifier.fillMaxSize(),
+                    // [Maou] sisakan ruang di atas untuk name tag: karakter diperkecil sedikit & kepala tidak tertutup
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(top = 58.dp),
                     onTap = toAccountManageScreen
                 )
                 AccountNameTag(

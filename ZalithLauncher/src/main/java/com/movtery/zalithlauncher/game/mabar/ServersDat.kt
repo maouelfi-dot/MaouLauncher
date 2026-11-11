@@ -29,7 +29,7 @@ internal object ServersDat {
      * Pastikan servers.dat di [gameDir] memiliki entri Mabar Hotspot di urutan pertama.
      * Jika file tidak bisa dibaca dengan benar, file tidak disentuh sama sekali.
      */
-    fun ensureMabarEntry(gameDir: File, icon: ByteArray) {
+    fun ensureMabarEntry(gameDir: File, icon: ByteArray, realIp: String? = null, realPort: Int? = null) {
         val file = File(gameDir, "servers.dat")
         val root: LinkedHashMap<String, Tag> = if (file.isFile && file.length() > 0) {
             runCatching { readRoot(file.readBytes()) }.getOrElse {
@@ -49,13 +49,17 @@ internal object ServersDat {
 
         @Suppress("UNCHECKED_CAST")
         val entries = list.items as MutableList<Any?>
+        //entri dikenali dari nama ATAU alamat proxy, karena alamatnya berubah menjadi IP:port asli host saat host terdeteksi
         val existing = entries.firstOrNull { e ->
-            ((e as? LinkedHashMap<String, Tag>)?.get("ip")?.v as? String) == ENTRY_IP
+            val m = e as? LinkedHashMap<String, Tag>
+            (m?.get("ip")?.v as? String) == ENTRY_IP || (m?.get("name")?.v as? String)?.startsWith(ENTRY_NAME) == true
         } as? LinkedHashMap<String, Tag>
 
         val entry = existing ?: LinkedHashMap<String, Tag>().also { entries.add(0, it) }
-        entry["name"] = Tag(8, ENTRY_NAME)
-        entry["ip"] = Tag(8, ENTRY_IP)
+        //host terdeteksi & terverifikasi -> isi otomatis IP:port aslinya (tanpa input manual); jika tidak, lewat proxy lokal
+        val real = if (realIp != null && realPort != null) "$realIp:$realPort" else null
+        entry["name"] = Tag(8, if (real != null) "$ENTRY_NAME • $real" else ENTRY_NAME)
+        entry["ip"] = Tag(8, real ?: ENTRY_IP)
         //ikon awal (sebelum ping selesai); setelah itu game memakai favicon dari proxy
         entry["icon"] = Tag(8, Base64.encodeToString(icon, Base64.NO_WRAP))
         entry["acceptTextures"] = Tag(1, 1.toByte())

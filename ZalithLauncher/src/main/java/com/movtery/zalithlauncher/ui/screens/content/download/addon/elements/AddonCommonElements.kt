@@ -239,14 +239,9 @@ fun AddonIcon(
                 .listener(
                     onError = { _, result -> Logger.warning(TAG, "Coil: error = ${result.throwable}") }
                 )
-                .crossfade(true)
+                .crossfade(false)
                 .build()
         }
-    }
-
-    //预加载
-    LaunchedEffect(imageRequest) {
-        imageRequest?.let { context.imageLoader.enqueue(it) }
     }
 
     val painter = rememberAsyncImagePainter(
@@ -263,9 +258,7 @@ fun AddonIcon(
             Box(modifier = sizeModifier)
         }
         is AsyncImagePainter.State.Loading -> {
-            ShimmerBox(
-                modifier = sizeModifier
-            )
+            Box(modifier = sizeModifier.background(Color.Gray.copy(alpha = 0.3f)))
         }
         is AsyncImagePainter.State.Error,
         is AsyncImagePainter.State.Success -> {

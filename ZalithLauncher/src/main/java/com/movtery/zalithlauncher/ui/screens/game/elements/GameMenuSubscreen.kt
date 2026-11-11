@@ -19,6 +19,9 @@
 package com.movtery.zalithlauncher.ui.screens.game.elements
 
 import android.widget.Toast
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import com.movtery.zalithlauncher.game.mabar.MabarLan
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
@@ -243,6 +246,15 @@ private fun GameActionContent(
                 onClick = onSwitchLog,
                 color = color,
                 contentColor = contentColor,
+            )
+        }
+
+        //[Maou] rekam layar HD ringan
+        item {
+            ScreenRecordButton(
+                modifier = Modifier.fillMaxWidth(),
+                color = color,
+                contentColor = contentColor
             )
         }
 
@@ -551,8 +563,13 @@ private fun ControlOverview(
             )
         }
 
+        //[Maou] Mabar Hotspot: IP HP ini, deteksi host otomatis, status sinkron skin/cape
         item {
-            Spacer(modifier = Modifier.height(8.dp))
+            MabarHotspotCard(
+                modifier = Modifier.fillMaxWidth(),
+                color = color,
+                contentColor = contentColor
+            )
         }
 
         //发送键值
@@ -606,6 +623,96 @@ private fun ControlOverview(
                 suffix = "%",
                 color = color,
                 contentColor = contentColor,
+            )
+        }
+    }
+}
+
+/**
+ * [Maou] Kartu Mabar Hotspot di menu game: tidak perlu keluar launcher untuk melihat IP hotspot.
+ * Teman cukup membuka Multiplayer lalu memilih entri "Mabar Hotspot" (terdeteksi otomatis).
+ */
+@Composable
+private fun MabarHotspotCard(
+    modifier: Modifier = Modifier,
+    color: Color,
+    contentColor: Color
+) {
+    val context = LocalContext.current
+    val state by MabarLan.state.collectAsState()
+
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.large)
+            .background(color)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.maou_mabar_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = contentColor
+        )
+
+        MenuSwitchButton(
+            modifier = Modifier.fillMaxWidth(),
+            text = stringResource(R.string.maou_mabar_enable),
+            switch = AllSettings.mabarLan.state,
+            onSwitch = { AllSettings.mabarLan.save(it) },
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+
+        //IP HP ini (ketuk untuk menyalin)
+        val ips = if (state.running) state.localIps else remember { MabarLan.localIpv4() }
+        if (ips.isEmpty()) {
+            Text(
+                text = stringResource(R.string.maou_lan_no_ip),
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor
+            )
+        } else {
+            ips.forEach { ip ->
+                MenuTextButton(
+                    modifier = Modifier.fillMaxWidth(),
+                    text = "${ip.address}  (${ip.iface})",
+                    onClick = {
+                        val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+                            as? android.content.ClipboardManager
+                        cm?.setPrimaryClip(android.content.ClipData.newPlainText("IP", ip.address))
+                        Toast.makeText(context, context.getString(R.string.maou_mabar_copied, ip.address), Toast.LENGTH_SHORT).show()
+                    },
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+
+        val lines = buildList {
+            if (!state.running) {
+                add(stringResource(R.string.maou_mabar_status_off))
+            } else {
+                val lanPort = state.ownLanPort
+                val host = state.host
+                if (lanPort != null) {
+                    add(stringResource(R.string.maou_mabar_status_hosting, lanPort))
+                } else if (host != null) {
+                    val ping = if (state.pingMs >= 0) " · ${state.pingMs} ms" else ""
+                    add(stringResource(R.string.maou_mabar_status_found, host.ip, host.port) + ping)
+                } else {
+                    add(stringResource(R.string.maou_mabar_status_searching))
+                }
+                if (state.activeLinks > 0) add(stringResource(R.string.maou_mabar_status_links, state.activeLinks))
+                if (state.syncedPlayers.isNotEmpty()) {
+                    add(stringResource(R.string.maou_mabar_status_skins, state.syncedPlayers.joinToString(", ")))
+                }
+            }
+        }
+        lines.forEach {
+            Text(
+                text = it,
+                style = MaterialTheme.typography.bodySmall,
+                color = contentColor
             )
         }
     }

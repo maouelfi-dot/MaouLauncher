@@ -44,6 +44,17 @@ import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.movtery.zalithlauncher.R
 
+/** [Maou] Waktu sentuhan terakhir di launcher; video latar dijeda saat UI sedang disentuh agar respons cepat. */
+object UiTouchClock {
+    @Volatile
+    var last = 0L
+        private set
+
+    fun touch() {
+        last = android.os.SystemClock.uptimeMillis()
+    }
+}
+
 /**
  * 简单的沉浸式视频播放层
  * @param autoPlay 准备好后，是否立即播放视频
@@ -68,7 +79,11 @@ fun VideoPlayer(
         val renderersFactory = DefaultRenderersFactory(context)
             .setEnableDecoderFallback(true) //开启解码器 fallback
 
-        ExoPlayer.Builder(context, renderersFactory).build().apply {
+        //[Maou] buffer kecil: video latar pendek/lokal, hemat RAM & kurangi GC yang bikin kejang
+        val loadControl = androidx.media3.exoplayer.DefaultLoadControl.Builder()
+            .setBufferDurationsMs(1500, 3000, 500, 500)
+            .build()
+        ExoPlayer.Builder(context, renderersFactory).setLoadControl(loadControl).build().apply {
             val audioAttr = AudioAttributes.Builder()
                 .setUsage(C.USAGE_MEDIA)
                 .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
@@ -77,6 +92,11 @@ fun VideoPlayer(
 
             this.repeatMode = if (loop) Player.REPEAT_MODE_ONE else Player.REPEAT_MODE_OFF
             this.volume = volume
+            //[Maou] batasi beban decode video latar (HP RAM kecil): maks 720p / 30fps bila ada pilihan track
+            trackSelectionParameters = trackSelectionParameters.buildUpon()
+                .setMaxVideoSize(1280, 720)
+                .setMaxVideoFrameRate(30)
+                .build()
         }
     }
 

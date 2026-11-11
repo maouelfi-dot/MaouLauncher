@@ -494,12 +494,20 @@ fun ByteArrayIcon(
     triggerRefresh: Any? = null,
     defaultIcon: Int = R.drawable.ic_unknown_pack,
     icon: ByteArray?,
-    colorFilter: ColorFilter? = null
+    colorFilter: ColorFilter? = null,
+    cacheKey: String? = null,
+    sizePx: Int? = null
 ) {
     val context = LocalContext.current
 
-    val model = remember(triggerRefresh, context) {
-        icon ?: defaultIcon
+    //[Maou] kunci cache + ukuran tetap: ikon tidak di-decode ulang penuh setiap scroll
+    val model = remember(triggerRefresh, context, cacheKey, sizePx) {
+        if (icon != null && (cacheKey != null || sizePx != null)) {
+            coil3.request.ImageRequest.Builder(context).data(icon).apply {
+                cacheKey?.let { memoryCacheKey(it); diskCacheKey(it) }
+                sizePx?.let { size(it) }
+            }.build()
+        } else icon ?: defaultIcon
     }
 
     AsyncImage(

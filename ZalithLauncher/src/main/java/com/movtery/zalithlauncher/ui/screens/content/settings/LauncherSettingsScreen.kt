@@ -235,6 +235,25 @@ fun LauncherSettingsScreen(
                 }
             }
 
+            //[Maou] batas FPS game (hemat baterai & suhu)
+            AnimatedItem { ctx ->
+                SettingsCardColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animated(ctx)
+                ) {
+                    IntSliderSettingsCard(
+                        modifier = Modifier.fillMaxWidth(),
+                        position = CardPosition.Single,
+                        unit = AllSettings.fpsLimit,
+                        title = stringResource(R.string.maou_fps_limit_title),
+                        summary = stringResource(R.string.maou_fps_limit_summary),
+                        valueRange = AllSettings.fpsLimit.floatRange,
+                        valueText = { value -> if (value < 10) "Tanpa batas" else "$value FPS" },
+                    )
+                }
+            }
+
             //[Maou] bantuan mabar LAN lewat hotspot (2 HP, tanpa kuota)
             AnimatedItem { ctx ->
                 HotspotLanCard(

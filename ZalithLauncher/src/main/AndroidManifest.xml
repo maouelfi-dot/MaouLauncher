@@ -172,13 +172,6 @@
         </service>
 
         <service
-            android:name=".game.record.RecordService"
-            android:enabled="true"
-            android:exported="false"
-            android:foregroundServiceType="mediaProjection"
-            android:process=":game" />
-
-        <service
             android:name=".game.launch.GameService"
             android:enabled="true"
             android:foregroundServiceType="specialUse"

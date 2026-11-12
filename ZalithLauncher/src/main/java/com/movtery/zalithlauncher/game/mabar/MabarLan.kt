@@ -213,7 +213,6 @@ object MabarLan {
 
         private class Seen<T>(val value: T, val at: Long = System.currentTimeMillis())
 
-        private var wifiLock: WifiManager.WifiLock? = null
         private lateinit var iconBytes: ByteArray
 
         fun begin() {
@@ -225,11 +224,6 @@ object MabarLan {
             runCatching {
                 val wifi = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
                 multicastLock = wifi?.createMulticastLock("maou_mabar")?.apply {
-                    setReferenceCounted(false)
-                    acquire()
-                }
-                @Suppress("DEPRECATION")
-                wifiLock = wifi?.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "maou_mabar")?.apply {
                     setReferenceCounted(false)
                     acquire()
                 }
@@ -249,7 +243,7 @@ object MabarLan {
             closeables.forEach { runCatching { it.close() } }
             closeables.clear()
             runCatching { multicastLock?.takeIf { it.isHeld }?.release() }
-            runCatching { wifiLock?.takeIf { it.isHeld }?.release() }
+            runCatching { latencyLock?.takeIf { it.isHeld }?.release() }
             pool.shutdownNow()
             Logger.info(TAG, "Mabar LAN stopped")
         }
@@ -291,6 +285,32 @@ object MabarLan {
         }
 
         @Volatile private var entryKey: String? = null
+        private var latencyLock: WifiManager.WifiLock? = null
+
+        /**
+         * Mode WiFi latensi rendah HANYA di HP teman selama ada host terverifikasi (sedang mabar):
+         * mengurangi lag/jitter karena WiFi masuk mode hemat daya. Dilepas lagi begitu host hilang.
+         */
+        private fun setLowLatency(on: Boolean) {
+            runCatching {
+                if (on) {
+                    if (latencyLock?.isHeld != true) {
+                        val wifi = context.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+                        val mode = if (android.os.Build.VERSION.SDK_INT >= 29) {
+                            WifiManager.WIFI_MODE_FULL_LOW_LATENCY
+                        } else {
+                            @Suppress("DEPRECATION") WifiManager.WIFI_MODE_FULL_HIGH_PERF
+                        }
+                        latencyLock = wifi?.createWifiLock(mode, "maou_mabar_ll")?.apply {
+                            setReferenceCounted(false)
+                            acquire()
+                        }
+                    }
+                } else {
+                    latencyLock?.takeIf { it.isHeld }?.release()
+                }
+            }
+        }
 
         /** Tulis IP:port asli host ke entri "Mabar Hotspot" di servers.dat (hanya saat host berubah). */
         private fun syncServerEntry(host: HostInfo?) {
@@ -310,6 +330,7 @@ object MabarLan {
                 val host = currentHost()
                 if (host == null) pingMs = -1
                 syncServerEntry(host)
+                setLowLatency(host != null)
                 val ips = localIpv4()
                 _state.value = State(
                     running = true,
@@ -321,7 +342,7 @@ object MabarLan {
                     activeLinks = activeLinks.get(),
                     syncedPlayers = syncedPlayers.keys.sorted()
                 )
-                sleepAlive(2000)
+                sleepAlive(3000)
             }
         }
 
@@ -468,9 +489,7 @@ object MabarLan {
             val payloads = ArrayList<ByteArray>(2)
             val tail = if (adv != null) "|$adv" else ""
             val lan = ownLan?.takeIf { System.currentTimeMillis() - it.at <= LAN_TTL_MS }?.value
-            if (lan != null) {
-                payloads += "MAOU1|HOST|${clean(lan.second.ifBlank { account.username })}|${lan.first}$tail".toByteArray()
-            }
+            var skinInfo: String? = null // name|uuid|model|sh|ch|ygg
             val skinServer = skinServer
             if (skinServer != null) {
                 val ygg = skinServer.getPort()
@@ -480,9 +499,15 @@ object MabarLan {
                     val sh = skinF?.let { hashOf(it) } ?: ""
                     val ch = capeF?.let { hashOf(it) } ?: ""
                     val model = if (account.skinModelType == SkinModelType.ALEX) "slim" else "wide"
-                    payloads += "MAOU1|SKIN|${clean(account.username)}|${account.profileId.replace("-", "")}|$model|$sh|$ch|$ygg$tail"
-                        .toByteArray()
+                    skinInfo = "${clean(account.username)}|${account.profileId.replace("-", "")}|$model|$sh|$ch|$ygg"
+                    payloads += "MAOU1|SKIN|$skinInfo$tail".toByteArray()
                 }
+            }
+            if (lan != null) {
+                //[Maou] info skin host ikut di paket HOST: skin host ditarik HP teman tepat saat host terverifikasi,
+                //sebelum teman masuk dunia (game menyimpan hasil pencarian skin yang gagal, jadi harus sudah siap)
+                val skinTail = if (skinInfo != null) "|$skinInfo" else ""
+                payloads += "MAOU1|HOST|${clean(lan.second.ifBlank { account.username })}|${lan.first}|${adv ?: ""}$skinTail".toByteArray()
             }
             return payloads
         }
@@ -497,6 +522,7 @@ object MabarLan {
             val sock = track(DatagramSocket().apply { broadcast = true })
             val limited = InetAddress.getByName("255.255.255.255")
             val ask = "MAOU1|ASK|-|0".toByteArray()
+            val routeSocks = HashMap<String, Pair<DatagramSocket, Long>>()
             while (alive) {
                 val rs = routes()
                 routeCache = rs; routeCacheAt = System.currentTimeMillis()
@@ -505,14 +531,22 @@ object MabarLan {
 
                 //1) broadcast lewat SETIAP antarmuka lokal; socket diikat ke alamat antarmuka supaya keluar lewat hotspot/WiFi yang benar,
                 //   dan IP antarmuka itu ikut ditulis di paket
+                val live = rs.mapNotNull { it.local.hostAddress }.toSet()
+                routeSocks.entries.removeIf { (k, v) ->
+                    val stale = k !in live || now - v.second > 60_000L
+                    if (stale) runCatching { v.first.close() }
+                    stale
+                }
                 for (r in rs) {
-                    val all = buildPayloads(r.local.hostAddress) + ask
+                    val key = r.local.hostAddress ?: continue
+                    val all = buildPayloads(key) + ask
                     runCatching {
-                        DatagramSocket(0, r.local).use { s ->
-                            s.broadcast = true
-                            sendTo(s, r.bc, all)
-                            sendTo(s, limited, all)
-                        }
+                        //socket per antarmuka dipakai ulang (bukan dibuat ulang tiap siklus) supaya hemat CPU/baterai
+                        val s = routeSocks.getOrPut(key) {
+                            track(DatagramSocket(0, r.local).apply { broadcast = true }) to now
+                        }.first
+                        sendTo(s, r.bc, all)
+                        sendTo(s, limited, all)
                     }
                 }
 
@@ -526,7 +560,8 @@ object MabarLan {
                     }
                 }
                 val active = buildPayloads(null).isNotEmpty() || peers.isNotEmpty()
-                sleepAlive(if (active) 2000 else 5000)
+                //hemat baterai: siaran lebih jarang; saat sepi (belum ada teman/host) lebih jarang lagi
+                sleepAlive(if (active) 4000 else 8000)
             }
         }
 
@@ -616,7 +651,12 @@ object MabarLan {
                 when (parts[1]) {
                     "HOST" -> {
                         val port = parts[3].toIntOrNull() ?: continue
-                        acceptHost(candidates(src, parts.getOrNull(4)), port, parts[2])
+                        val cands = candidates(src, parts.getOrNull(4)?.takeIf { it.isNotEmpty() })
+                        acceptHost(cands, port, parts[2])
+                        //paket HOST baru: MAOU1|HOST|motd|port|ip|name|uuid|model|sh|ch|ygg
+                        if (parts.size >= 11) {
+                            onSkinBeacon(cands, listOf("MAOU1", "SKIN", parts[5], parts[6], parts[7], parts[8], parts[9], parts[10]))
+                        }
                     }
                     "SKIN" -> if (parts.size >= 8) onSkinBeacon(candidates(src, parts.getOrNull(8)), parts)
                     //ada HP yang mencari: jawab langsung ke pengirimnya
@@ -663,7 +703,7 @@ object MabarLan {
             if (!f.isFile) return@runCatching null
             RandomAccessFile(f, "r").use { raf ->
                 val len = raf.length()
-                val start = maxOf(0L, len - 96 * 1024L)
+                val start = maxOf(0L, len - 32 * 1024L)
                 raf.seek(start)
                 val bytes = ByteArray((len - start).toInt())
                 raf.readFully(bytes)
@@ -729,7 +769,8 @@ object MabarLan {
                         }
                     }
                 }
-                sleepAlive(3000)
+                //hemat baterai: sudah ketemu -> cek ulang jarang; belum ketemu -> cari tiap 6 detik
+                sleepAlive(if (ownLan != null) 5000 else 6000)
             }
         }
 

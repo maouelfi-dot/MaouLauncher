@@ -3076,7 +3076,7 @@
     <string name="maou_cape_import">Ganti Cape (file PNG)</string>
     <string name="maou_cape_remove">Hapus Cape</string>
     <string name="maou_cape_invalid">Cape tidak valid. Pakai PNG 64x32 / 22x17 (atau kelipatannya), maks 512 KB.</string>
-    <string name="maou_record_start">Rekam Layar (HD ringan)</string>
+    <string name="maou_record_start">Rekam Layar (frame game saja)</string>
     <string name="maou_record_stop">Berhenti Rekam</string>
     <string name="maou_record_saved">Rekaman tersimpan: %1$s</string>
     <string name="maou_fps_limit_title">Batas FPS Game</string>

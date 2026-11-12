@@ -1,39 +1,58 @@
 /*
- * Maou Launcher - rekam layar ringan: MediaProjection + MediaRecorder (encoder H.264 hardware),
- * maks 1280x720 @30fps ~4 Mbps, video saja (tanpa mikrofon). Tidak menambah beban CPU/GPU berarti.
+ * Maou Launcher - rekam layar "frame game saja".
+ *
+ * Yang direkam HANYA gambar game (TextureView game), jadi tombol kontrol, tombol melayang, menu, dan
+ * penanda REC tetap tampil di layar tetapi TIDAK ikut masuk ke video. Tidak memakai MediaProjection
+ * (tanpa dialog izin & tanpa foreground service): frame game disalin ~30x per detik lalu dikirim ke
+ * encoder H.264 hardware (MediaRecorder). Lebih berat sedikit daripada merekam layar biasa karena ada
+ * salinan GPU->CPU per frame; ukuran dibatasi 1280 px sisi terpanjang. Video saja, tanpa suara.
  */
 package com.movtery.zalithlauncher.game.record
 
 import android.content.Context
-import android.content.Intent
-import android.hardware.display.DisplayManager
-import android.hardware.display.VirtualDisplay
+import android.graphics.Bitmap
 import android.media.MediaRecorder
-import android.media.projection.MediaProjection
-import android.media.projection.MediaProjectionManager
 import android.os.Environment
 import android.os.Handler
+import android.os.HandlerThread
 import android.os.Looper
-import android.util.DisplayMetrics
-import android.view.WindowManager
+import android.os.Process
+import android.os.SystemClock
+import android.view.Surface
+import android.view.TextureView
+import android.widget.Toast
 import com.movtery.zalithlauncher.utils.logging.Logger
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.File
+import java.lang.ref.WeakReference
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
 
 private const val TAG = "ScreenRecorder"
+private const val FRAME_INTERVAL_MS = 33L
 
 object ScreenRecorder {
     private val _recording = MutableStateFlow(false)
     val recording: StateFlow<Boolean> = _recording.asStateFlow()
 
-    private var projection: MediaProjection? = null
-    private var display: VirtualDisplay? = null
+    /** TextureView tempat game digambar; diisi oleh VMActivity. */
+    @Volatile
+    var gameView: WeakReference<TextureView>? = null
+
     private var recorder: MediaRecorder? = null
+    private var surface: Surface? = null
+    private var bitmap: Bitmap? = null
+    private var thread: HandlerThread? = null
+    private var handler: Handler? = null
+    @Volatile private var active = false
+    @Volatile private var captureOnMain = false
+    private var failures = 0
+
     var lastFile: File? = null
         private set
 
@@ -42,84 +61,56 @@ object ScreenRecorder {
     var startedAt: Long = 0L
         private set
 
-    @Volatile
-    var withAudio: Boolean = false
-        private set
-
     @Synchronized
-    fun start(context: Context, resultCode: Int, data: Intent): Boolean {
+    fun start(context: Context): Boolean {
         if (_recording.value) return true
+        val view = gameView?.get()
+        if (view == null || view.width <= 0 || view.height <= 0 || !view.isAvailable) {
+            Logger.warning(TAG, "Game view not ready")
+            return false
+        }
         return try {
-            val mgr = context.getSystemService(Context.MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
-            val proj = mgr.getMediaProjection(resultCode, data) ?: return false
-            proj.registerCallback(object : MediaProjection.Callback() {
-                override fun onStop() {
-                    stop()
-                }
-            }, Handler(Looper.getMainLooper()))
-
-            val metrics = DisplayMetrics()
-            @Suppress("DEPRECATION")
-            (context.getSystemService(Context.WINDOW_SERVICE) as WindowManager).defaultDisplay.getRealMetrics(metrics)
-            //batasi sisi terpanjang 1280 px (HD 720p), angka genap untuk encoder
-            val scale = minOf(1f, 1280f / maxOf(metrics.widthPixels, metrics.heightPixels))
-            val w = (metrics.widthPixels * scale).toInt() and 1.inv()
-            val h = (metrics.heightPixels * scale).toInt() and 1.inv()
+            //batasi sisi terpanjang 1280 px, angka genap untuk encoder; rasio sama dengan layar game
+            val scale = minOf(1f, 1280f / maxOf(view.width, view.height))
+            val w = (view.width * scale).toInt() and 1.inv()
+            val h = (view.height * scale).toInt() and 1.inv()
 
             val dir = context.getExternalFilesDir(Environment.DIRECTORY_MOVIES) ?: context.filesDir
             dir.mkdirs()
             val file = File(dir, "Maou_" + SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date()) + ".mp4")
 
-            //[Maou] mikrofon TIDAK dipakai (suara orang tidak ikut). Android 8.1 tidak bisa merekam suara game langsung.
-            val micGranted = false
-
-            fun buildRecorder(audio: Boolean): MediaRecorder {
-                @Suppress("DEPRECATION")
-                val r = MediaRecorder()
-                try {
-                    if (audio) r.setAudioSource(MediaRecorder.AudioSource.MIC)
-                    r.setVideoSource(MediaRecorder.VideoSource.SURFACE)
-                    r.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
-                    r.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                    r.setVideoEncodingBitRate(4_000_000)
-                    r.setVideoFrameRate(30)
-                    r.setVideoSize(w, h)
-                    if (audio) {
-                        r.setAudioEncoder(MediaRecorder.AudioEncoder.AAC)
-                        r.setAudioEncodingBitRate(128_000)
-                        r.setAudioSamplingRate(44_100)
-                    }
-                    r.setOutputFile(file.absolutePath)
-                    r.prepare()
-                } catch (e: Throwable) {
-                    runCatching { r.release() }
-                    throw e
-                }
-                return r
-            }
-
-            var audioOn = micGranted
-            val rec = try {
-                buildRecorder(audioOn)
+            @Suppress("DEPRECATION")
+            val rec = MediaRecorder()
+            try {
+                rec.setVideoSource(MediaRecorder.VideoSource.SURFACE)
+                rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
+                rec.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
+                rec.setVideoEncodingBitRate(5_000_000)
+                rec.setVideoFrameRate(30)
+                rec.setVideoSize(w, h)
+                rec.setOutputFile(file.absolutePath)
+                rec.prepare()
             } catch (e: Throwable) {
-                if (!audioOn) throw e
-                //mikrofon sedang dipakai / tidak tersedia: tetap rekam video saja
-                Logger.warning(TAG, "Audio unavailable, recording video only", e)
-                audioOn = false
-                buildRecorder(false)
+                runCatching { rec.release() }
+                throw e
             }
-            display = proj.createVirtualDisplay(
-                "MaouRec", w, h, metrics.densityDpi,
-                DisplayManager.VIRTUAL_DISPLAY_FLAG_AUTO_MIRROR, rec.surface, null, null
-            )
-            rec.start()
-            projection = proj
+            val surf = rec.surface
+            bitmap = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888)
             recorder = rec
+            surface = surf
             lastFile = file
-            withAudio = audioOn
-            startedAt = android.os.SystemClock.elapsedRealtime()
+            failures = 0
+            captureOnMain = false
+
+            rec.start()
+            active = true
+            startedAt = SystemClock.elapsedRealtime()
             _recording.value = true
-            Logger.info(TAG, "Recording ${w}x$h -> ${file.absolutePath}")
+
+            val t = HandlerThread("MaouRecFrames", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
+            thread = t
+            handler = Handler(t.looper).also { it.post(frameTick) }
+            Logger.info(TAG, "Recording game frames ${w}x$h -> ${file.absolutePath}")
             true
         } catch (e: Throwable) {
             Logger.error(TAG, "Failed to start recording", e)
@@ -128,20 +119,93 @@ object ScreenRecorder {
         }
     }
 
+    private val frameTick = object : Runnable {
+        override fun run() {
+            if (!active) return
+            val begin = SystemClock.elapsedRealtime()
+            try {
+                captureFrame()
+                failures = 0
+            } catch (e: Throwable) {
+                failures++
+                if (failures == 1) Logger.warning(TAG, "Frame capture failed", e)
+                //kalau salinan dari thread latar ditolak, coba lewat thread utama
+                if (failures == 3 && !captureOnMain) {
+                    captureOnMain = true
+                    failures = 0
+                }
+                if (failures >= 60) {
+                    Logger.error(TAG, "Too many capture failures, stopping")
+                    Handler(Looper.getMainLooper()).post { stop(null) }
+                    return
+                }
+            }
+            val spent = SystemClock.elapsedRealtime() - begin
+            handler?.postDelayed(this, maxOf(1L, FRAME_INTERVAL_MS - spent))
+        }
+    }
+
+    private fun captureFrame() {
+        val view = gameView?.get() ?: return
+        val bmp = bitmap ?: return
+        val surf = surface ?: return
+        if (!view.isAvailable) return
+
+        if (captureOnMain) {
+            val latch = CountDownLatch(1)
+            Handler(Looper.getMainLooper()).post {
+                try {
+                    view.getBitmap(bmp)
+                } finally {
+                    latch.countDown()
+                }
+            }
+            if (!latch.await(500, TimeUnit.MILLISECONDS)) return
+        } else {
+            view.getBitmap(bmp)
+        }
+
+        //frame game (tanpa kontrol/overlay) -> encoder
+        val canvas = surf.lockCanvas(null)
+        try {
+            canvas.drawBitmap(bmp, 0f, 0f, null)
+        } finally {
+            surf.unlockCanvasAndPost(canvas)
+        }
+    }
+
+    /** Berhenti merekam; [context] tidak null = tampilkan lokasi file. */
     @Synchronized
-    fun stop() {
+    fun stop(context: Context?) {
         if (!_recording.value && recorder == null) return
+        val file = lastFile
+        val wasRecording = _recording.value
+        active = false
+        handler?.removeCallbacksAndMessages(null)
         runCatching { recorder?.stop() }
         release()
+        if (wasRecording && context != null) {
+            Handler(Looper.getMainLooper()).post {
+                Toast.makeText(
+                    context,
+                    context.getString(com.movtery.zalithlauncher.R.string.maou_record_saved, file?.absolutePath ?: ""),
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+        }
     }
 
     private fun release() {
-        runCatching { display?.release() }
+        active = false
+        runCatching { thread?.quitSafely() }
         runCatching { recorder?.release() }
-        runCatching { projection?.stop() }
-        display = null
+        runCatching { surface?.release() }
+        runCatching { bitmap?.recycle() }
+        thread = null
+        handler = null
         recorder = null
-        projection = null
+        surface = null
+        bitmap = null
         _recording.value = false
     }
 }

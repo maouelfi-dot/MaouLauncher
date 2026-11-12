@@ -56,6 +56,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.produceState
@@ -588,25 +591,37 @@ private fun ActionMenuCardContent(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             //[Maou] karakter menyatu di dalam kartu; ketuk karakter = ganti akun / skin
+            var tagHeightPx by remember { mutableIntStateOf(0) }
+            val tagDensity = LocalDensity.current
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
             ) {
-                AccountCharacter(
-                    account = account,
-                    dockedSide = dockedSide,
-                    // [Maou] sisakan ruang di atas untuk name tag: karakter diperkecil sedikit & kepala tidak tertutup
+                //[Maou] ruang karakter = di bawah name tag (tingginya diukur langsung, jadi tidak pernah menimpa kepala)
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxSize()
-                        .padding(top = 58.dp),
-                    onTap = toAccountManageScreen
-                )
+                        .padding(top = with(tagDensity) { tagHeightPx.toDp() } + 16.dp, bottom = 6.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    //renderer menskalakan model dari LEBAR view, maka lebar dibatasi oleh tinggi: karakter diperkecil, bukan dipotong
+                    val side = minOf(maxWidth, maxHeight / 0.9f)
+                    AccountCharacter(
+                        account = account,
+                        dockedSide = dockedSide,
+                        modifier = Modifier
+                            .width(side)
+                            .fillMaxHeight(),
+                        onTap = toAccountManageScreen
+                    )
+                }
                 AccountNameTag(
                     account = account,
                     modifier = Modifier
                         .align(Alignment.TopCenter)
                         .padding(top = 10.dp, start = 8.dp, end = 8.dp)
+                        .onSizeChanged { tagHeightPx = it.height }
                         .guideNode(
                             key = GuideKeys.Main.Step.Account,
                             preferSide = GuideSide.Below,
@@ -668,19 +683,28 @@ private fun ActionMenuTallerContent(
             }
         }
 
-        PetModelView(
+        BoxWithConstraints(
             modifier = Modifier
                 .weight(1f)
-                .fillMaxWidth()
-                .observeTap(toAccountManageScreen),
-            skin = skinBytes,
-            cape = capeBytes,
-            arm = armModel,
-            yaw = yaw,
-            animation = PetAnimation.Idle,
-            tapReaction = PetTapReaction.Interact,
-            dragYaw = false
-        )
+                .fillMaxWidth(),
+            contentAlignment = Alignment.Center
+        ) {
+            //[Maou] lebar dibatasi tinggi supaya karakter utuh (diperkecil, tidak terpotong)
+            val side = minOf(maxWidth, maxHeight / 0.9f)
+            PetModelView(
+                modifier = Modifier
+                    .width(side)
+                    .fillMaxHeight()
+                    .observeTap(toAccountManageScreen),
+                skin = skinBytes,
+                cape = capeBytes,
+                arm = armModel,
+                yaw = yaw,
+                animation = PetAnimation.Idle,
+                tapReaction = PetTapReaction.Interact,
+                dragYaw = false
+            )
+        }
 
         BackgroundCard(
             modifier = Modifier

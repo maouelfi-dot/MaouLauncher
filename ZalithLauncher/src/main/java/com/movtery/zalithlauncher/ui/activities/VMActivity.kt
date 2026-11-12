@@ -34,6 +34,7 @@ import android.view.InputDevice
 import android.view.KeyEvent
 import android.view.Surface
 import android.view.TextureView
+import com.movtery.zalithlauncher.game.record.ScreenRecorder
 import android.view.TextureView.SurfaceTextureListener
 import android.view.ViewGroup
 import android.view.WindowManager
@@ -439,6 +440,8 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        //[Maou] jembatan WebView untuk mod Maou WebDisplay (layar web di Android)
+        com.movtery.zalithlauncher.game.webbridge.WebBridgeServer.start(this)
         //加载渲染器
         Renderers.init()
         //加载插件
@@ -720,6 +723,7 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener {
 
     override fun onDestroy() {
         getSystemService(DisplayManager::class.java)?.unregisterDisplayListener(displayListener)
+        com.movtery.zalithlauncher.game.webbridge.WebBridgeServer.stop()
         stopAllService()
         withHandler { onDestroy() }
         SdlBridge.reset()
@@ -1018,6 +1022,8 @@ class VMActivity : BaseAppCompatActivity(), SurfaceTextureListener {
                         }
                     }.also { texture ->
                         gameTextureView = texture
+                        //[Maou] perekam layar mengambil frame langsung dari TextureView game (tanpa overlay kontrol)
+                        ScreenRecorder.gameView = java.lang.ref.WeakReference(texture)
                     }
                 }
             )

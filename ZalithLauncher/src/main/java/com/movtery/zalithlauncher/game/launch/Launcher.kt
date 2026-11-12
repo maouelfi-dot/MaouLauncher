@@ -348,7 +348,8 @@ abstract class Launcher(
         // (stutter, then Android kills the game / reboots the phone). Keep the heap near 35% of RAM there.
         val cappedRam = when {
             deviceMb <= 0 -> ramAllocation
-            lowRam -> ramAllocation.coerceAtMost(maxOf(512, deviceMb * 36 / 100))
+            //[Maou] 42% (dulu 36%): modpack besar (100+ mod) kehabisan heap di ±580MB sehingga GC penuh berulang = kejang-kejang
+            lowRam -> ramAllocation.coerceAtMost(maxOf(512, deviceMb * 42 / 100))
             else -> ramAllocation.coerceAtMost(maxOf(1024, deviceMb - 900))
         }
         val ramAllocationString = cappedRam.toString()
@@ -372,8 +373,15 @@ abstract class Launcher(
         // Low-RAM phones: lightest GC, smaller code cache, fixed young generation (avoids 1-3 s full-GC freezes)
         if (lowRam && args.none { it.startsWith("-XX:+Use") && it.endsWith("GC") }) {
             args.add("-XX:+UseSerialGC")
-            args.add("-Xmn${minOf(256, maxOf(96, cappedRam / 3))}M")
+            //[Maou] generasi muda lebih kecil (1/5 heap): ruang "old" lebih luas supaya tidak sering GC penuh (jeda 1-3 detik)
+            args.add("-Xmn${minOf(160, maxOf(96, cappedRam / 5))}M")
             args.add("-XX:-UsePerfData")
+            //[Maou] heap boleh menyusut kembali setelah puncak (mis. saat memuat chunk) supaya RAM dikembalikan ke Android
+            //dan game tidak dibunuh sistem karena memori habis
+            if (args.none { it.startsWith("-XX:MaxHeapFreeRatio") }) {
+                args.add("-XX:MinHeapFreeRatio=10")
+                args.add("-XX:MaxHeapFreeRatio=30")
+            }
             args.add("-XX:CICompilerCount=2")
         }
 

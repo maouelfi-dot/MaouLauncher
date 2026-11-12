@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "id": "maou_mcef",
+  "version": "${version}",
+  "name": "Maou MCEF (Android)",
+  "description": "Pengganti MCEF untuk Android: WebDisplays tampil lewat WebView milik Maou Launcher. Tanpa PC, tanpa Chromium desktop.",
+  "authors": ["Maou"],
+  "license": "GPL-3.0",
+  "environment": "client",
+  "provides": ["mcef"],
+  "depends": {
+    "fabricloader": ">=0.16.0",
+    "minecraft": "~1.21.1",
+    "java": ">=21"
+  }
+}

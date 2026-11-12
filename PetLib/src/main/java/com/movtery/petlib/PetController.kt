@@ -43,7 +43,8 @@ private const val SURFACE_FAILURE_LIMIT = 10
 /**
  * 帧间隔下限
  */
-private const val MIN_FRAME_INTERVAL_NANOS = 1_000_000_000L / 60L * 9L / 10L
+//[Maou] hemat baterai: render karakter dibatasi 30 fps (sebelumnya 60 fps terus-menerus di layar utama)
+private const val MIN_FRAME_INTERVAL_NANOS = 1_000_000_000L / 30L * 9L / 10L
 
 /** 归一化到 (-π, π]，供最短路径回正 */
 private fun wrapPi(angle: Float): Float {

@@ -149,17 +149,13 @@ class ZLApplication : Application(), SingletonImageLoader.Factory {
         AccountsManager.initialize(this)
         GamePathManager.initialize(this)
 
-        //[Maou] latar default: ilustrasi anime HD (hanya sekali; jika pengguna menghapus/menggantinya, tidak dipasang ulang)
+        //[Maou] latar menu utama dikembalikan ke bawaan asli: hapus SEKALI latar anime bawaan Maou yang dulu dipasang otomatis.
+        //Hanya dihapus jika ukurannya sama persis dengan gambar bawaan lama (243828 byte), jadi gambar pilihan pengguna aman.
         runCatching {
-            val marker = java.io.File(PathManager.DIR_FILES_PRIVATE, ".maou_default_bg_seeded")
+            val marker = java.io.File(PathManager.DIR_FILES_PRIVATE, ".maou_default_bg_reverted")
             if (!marker.exists()) {
                 val bg = PathManager.FILE_LAUNCHER_BACKGROUND
-                if (!bg.exists()) {
-                    bg.parentFile?.mkdirs()
-                    assets.open("default_background.webp").use { input ->
-                        bg.outputStream().use { input.copyTo(it) }
-                    }
-                }
+                if (bg.exists() && bg.isFile && bg.length() == 243828L) bg.delete()
                 marker.createNewFile()
             }
         }

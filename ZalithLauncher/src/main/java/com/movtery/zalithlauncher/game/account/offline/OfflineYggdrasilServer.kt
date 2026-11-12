@@ -189,6 +189,14 @@ class OfflineYggdrasilServer(
         charactersByUuid[character.uuid.lowercase()] = character
         charactersByName[character.name.lowercase()] = character
 
+        //[Maou] Server LAN host memberi UUID dari NAMA ("OfflinePlayer:nama") kepada pemain yang bergabung, jadi game di HP teman
+        //mencari skin DIRINYA SENDIRI dengan UUID itu. Tanpa entri ini skin sendiri di HP teman tidak terlihat.
+        val offlineUuid = java.util.UUID.nameUUIDFromBytes("OfflinePlayer:${account.username}".toByteArray(Charsets.UTF_8))
+            .toString().replace("-", "")
+        if (!offlineUuid.equals(character.uuid, ignoreCase = true)) {
+            charactersByUuid[offlineUuid.lowercase()] = character.copy(uuid = offlineUuid)
+        }
+
         Logger.info(TAG, "Added character ${character.name} (${character.uuid}), skin hash = ${character.skin?.skinHash}, cape hash = ${character.skin?.capeHash}")
     }
 

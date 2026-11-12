@@ -587,6 +587,7 @@ fun GameScreen(
     val cursorMode by ZLBridgeStates.cursorMode.collectAsStateWithLifecycle()
     //[Maou] saat merekam: kontrol layar & tombol menu melayang disembunyikan (tetap berfungsi) agar tidak terekam
     val isRecording by ScreenRecorder.recording.collectAsStateWithLifecycle()
+    //[Maou] kontrol & tombol melayang tetap tampil saat merekam; video hanya berisi frame game
     val isGrabbing = remember(cursorMode) {
         cursorMode == CURSOR_DISABLED
     }
@@ -676,7 +677,7 @@ fun GameScreen(
                 observedLayout = viewModel.observableLayout,
                 eventHandler = viewModel.eventHandler,
                 checkOccupiedPointers = { viewModel.occupiedPointers.contains(it) },
-                opacity = { if (isRecording) 0f else (AllSettings.controlsOpacity.state.toFloat() / 100f).coerceIn(0f, 1f) },
+                opacity = { (AllSettings.controlsOpacity.state.toFloat() / 100f).coerceIn(0f, 1f) },
                 markPointerAsMoveOnly = { viewModel.moveOnlyPointers.add(it) },
                 onOccupiedPointer = { viewModel.occupiedPointers.add(it) },
                 onReleasePointer = { viewModel.occupiedPointers.remove(it) },
@@ -843,7 +844,7 @@ fun GameScreen(
                     fpsMin = { viewModel.fpsMin },
                     showMemory = AllSettings.showMemory.state,
                     opened = viewModel.gameMenuState == MenuState.SHOW,
-                    alpha = if (isRecording) 0f else AllSettings.menuBallOpacity.state / 100f,
+                    alpha = AllSettings.menuBallOpacity.state / 100f,
                     onClick = {
                         viewModel.switchMenu()
                     }

@@ -1,7 +1,6 @@
 package com.movtery.zalithlauncher.ui.screens.game.elements
 
 import android.content.Context
-import android.content.Intent
 import android.os.SystemClock
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -31,14 +30,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.movtery.zalithlauncher.game.record.RecordService
 import com.movtery.zalithlauncher.game.record.ScreenRecorder
 import kotlinx.coroutines.delay
 
 /**
  * [Maou] Penanda "sedang merekam": titik merah berkedip + durasi di pojok kiri atas.
- * Tekan lama untuk berhenti merekam (tombol menu melayang disembunyikan selama merekam
- * supaya tidak ikut terekam).
+ * Tekan lama untuk berhenti merekam (penanda ini hanya di layar,
+ * tidak ikut terekam karena yang direkam hanya frame game).
  */
 @Composable
 fun RecordingIndicator(modifier: Modifier = Modifier) {
@@ -63,9 +61,7 @@ fun RecordingIndicator(modifier: Modifier = Modifier) {
             .padding(horizontal = 8.dp, vertical = 3.dp)
             .pointerInput(Unit) {
                 detectTapGestures(onLongPress = {
-                    context.startService(
-                        Intent(context, RecordService::class.java).setAction(RecordService.ACTION_STOP)
-                    )
+                    ScreenRecorder.stop(context)
                 })
             },
         verticalAlignment = Alignment.CenterVertically

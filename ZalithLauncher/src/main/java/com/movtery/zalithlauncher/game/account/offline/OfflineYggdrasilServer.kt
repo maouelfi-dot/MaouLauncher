@@ -83,6 +83,13 @@ private const val SHARED_KEY_PKCS8 =
         "hmdWtYycoamqmKxfU85IecFT+KUxc7/xm3PbAEAO/D5wWeDnWBHyK62wQyhD84Ris+ho/9Q1SFprLrIfgoUaNo3tjQzPAjAWFKQY" +
         "nt3CRBSY5FPxloIJ3pujsQ=="
 
+/** [Maou] Pasangan publik (X.509) dari [SHARED_KEY_PKCS8]. Disimpan terpisah supaya tidak perlu mengubah kunci privat ke tipe CRT (gagal di Android 8.1). */
+private const val SHARED_KEY_X509 =
+        "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEApD2s6UUkdD93xXzLzmUEIB6czfg3+pNT63MUdHmReGNoJaiNAkd18hL8" +
+        "41G+/qnTRPuwcv2robPiyWgK4BU0v/CQEd29iMDJXswHx+yggOthlGSBq3Fx7mtHBdrsCwEfTorF2EFKNxL1BNTblxKKQxRxav/D" +
+        "xJh3CWTVI+/OX9ACXfaDA0dbjTUlkigRWIfmoZ08S3SGwUQjdhY4WVnraABXn6/IzB4EWhOveg8qxdL+VPbBcFiHRD6wUcV214h9" +
+        "+iALX5N7iFW/JwDTUitjYeuSJM4SArTisdzawXMhS54mCcTdLvZrnGrTxFemo4fWCUfQRRp37PrjReCnUYVkkwIDAQAB"
+
 /**
  * 离线账号 Yggdrasil 服务器，用于本地加载玩家皮肤、披风
  * [Reference from HMCL](https://github.com/HMCL-dev/HMCL/blob/15e490f/HMCLCore/src/main/java/org/jackhuang/hmcl/auth/offline/YggdrasilServer.java)
@@ -100,13 +107,21 @@ class OfflineYggdrasilServer(
      * ditandatangani kunci host; tiap HP hanya mempercayai kunci server skin miliknya sendiri. Kunci acak per HP
      * membuat tanda tangan di HP lain tidak cocok -> skin ditolak. Kunci ini hanya untuk skin offline lokal (bukan rahasia).
      */
-    private val keyPair: KeyPair = run {
+    private val keyPair: KeyPair = runCatching {
         val kf = java.security.KeyFactory.getInstance("RSA")
+        //[Maou] JANGAN di-cast ke RSAPrivateCrtKey: di Android 8.1 (Conscrypt) hasilnya OpenSSLRSAPrivateKey sehingga
+        //ClassCastException dan game tidak bisa dibuka sama sekali. Kunci publik dibaca dari pasangannya (X.509).
         val priv = kf.generatePrivate(
             java.security.spec.PKCS8EncodedKeySpec(Base64.getDecoder().decode(SHARED_KEY_PKCS8))
-        ) as java.security.interfaces.RSAPrivateCrtKey
-        val pub = kf.generatePublic(java.security.spec.RSAPublicKeySpec(priv.modulus, priv.publicExponent))
+        )
+        val pub = kf.generatePublic(
+            java.security.spec.X509EncodedKeySpec(Base64.getDecoder().decode(SHARED_KEY_X509))
+        )
         KeyPair(pub, priv)
+    }.getOrElse { e ->
+        //cadangan: kunci acak (skin lintas-HP bisa tidak cocok, tapi game tetap bisa dibuka)
+        Logger.warning(TAG, "Kunci tetap gagal dimuat, memakai kunci acak", e)
+        java.security.KeyPairGenerator.getInstance("RSA").apply { initialize(2048) }.genKeyPair()
     }
 
     /**

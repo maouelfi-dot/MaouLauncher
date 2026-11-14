@@ -216,6 +216,7 @@ object MabarLan {
 
         fun begin() {
             skinServer?.unknownProfileResolver = { uuid -> resolveSkinNow(uuid) }
+            skinServer?.unknownTextureResolver = { hash -> resolveTextureNow(hash) }
             iconBytes = context.assets.open("mabar/wifi_icon.png").use { it.readBytes() }
             faviconUri = "data:image/png;base64," + Base64.encodeToString(iconBytes, Base64.NO_WRAP)
 
@@ -240,6 +241,7 @@ object MabarLan {
 
         override fun close() {
             skinServer?.unknownProfileResolver = null
+            skinServer?.unknownTextureResolver = null
             alive = false
             closeables.forEach { runCatching { it.close() } }
             closeables.clear()
@@ -797,6 +799,11 @@ object MabarLan {
             val hit = skinBeacons.values.firstOrNull { (_, p) ->
                 p[3].replace("-", "").equals(uuid, ignoreCase = true) || offlineUuidOf(p[2]).equals(uuid, ignoreCase = true)
             } ?: return
+            syncSkin(hit.first, hit.second)
+        }
+
+        private fun resolveTextureNow(hash: String) {
+            val hit = skinBeacons.values.firstOrNull { (_, p) -> p[5] == hash || p[6] == hash } ?: return
             syncSkin(hit.first, hit.second)
         }
 

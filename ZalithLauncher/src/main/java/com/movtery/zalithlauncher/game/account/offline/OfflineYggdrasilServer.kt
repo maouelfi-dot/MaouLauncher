@@ -52,7 +52,6 @@ import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import org.jackhuang.hmcl.util.DigestUtils
 import java.security.KeyPair
-import java.security.KeyPairGenerator
 import java.security.PublicKey
 import java.security.Signature
 import java.util.Base64
@@ -61,6 +60,28 @@ import java.util.concurrent.CountDownLatch
 import java.util.concurrent.TimeUnit
 
 private const val TAG = "OfflineYggdrasil"
+
+/** [Maou] port server skin yang sama di semua HP (lihat [OfflineYggdrasilServer.start]) */
+private const val SHARED_PORT = 24447
+
+private const val SHARED_KEY_PKCS8 =
+        "MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCkPazpRSR0P3fFfMvOZQQgHpzN+Df6k1PrcxR0eZF4Y2glqI0C" +
+        "R3XyEvzjUb7+qdNE+7By/auhs+LJaArgFTS/8JAR3b2IwMlezAfH7KCA62GUZIGrcXHua0cF2uwLAR9OisXYQUo3EvUE1NuXEopD" +
+        "FHFq/8PEmHcJZNUj785f0AJd9oMDR1uNNSWSKBFYh+ahnTxLdIbBRCN2FjhZWetoAFefr8jMHgRaE696DyrF0v5U9sFwWIdEPrBR" +
+        "xXbXiH36IAtfk3uIVb8nANNSK2Nh65IkzhICtOKx3NrBcyFLniYJxN0u9mucatPEV6ajh9YJR9BFGnfs+uNF4KdRhWSTAgMBAAEC" +
+        "ggEAAkjXvOIfVBafhEaGHZ4K5QxH9hcVZqdIXyZzCsoeG34wFqxpIBz9jc51Ag+pbnVorbVdvcIiWKKquhtEyEH2dK0HjZgRNab1" +
+        "phuEbpcWBg6mhTl/EqY5uK1GIaJRiJ2m+weAu2jwSIlukXcJTukNHBdbgVEcpTSeg0NWmHD5F+mqrUVm0fanZf81ehlU1CB8Kata" +
+        "qkUqBFB6Q7gaUcqUEA/IaykiaywfOt2cGes4FWnsZhDNTvcUVEVQuZ+h9gtgUXHR7i7DH/AsLPyMIFAMaywc4I5p+CU5yWke6wgN" +
+        "TEBqhe/H07gakE0DLyWYbKFHllkIR1hVM9DQFoe/Q6KusQKBgQDb2Zks/HPdvpq/1pNKn+cbuh5mV3GI4EF58FmBliOWi0NV4C7P" +
+        "0kOa/UWDFXsN2KhnYsbCNW7LkqdonyD/O5hY68HdpL0z49LLMkxHQeNiMWunLehFiRTU7QweVZPJYUP4jLGNG6JhQUVXUlNhWBub" +
+        "d8isglVF/Uke75xyhUbXrwKBgQC/P0J2qxaBx84ax0LaFO5xjwC1JV9b0igEkRd3Nqjy9Jh6IB7qD/FThI8cA0Rbp0uOEzZZ1V7B" +
+        "J9ylHgqxGbWE3iO3yFjG8MGZ4PTvy7X+tlwu2TeKJ9mytxS3NiGGjzh8W4QLzpoOD8ecTWchD6JPkPxS8h04aOTndMEQA8AWXQKB" +
+        "gGJBjA3o/je6ehsG4WlWsclYk0GWDy3nXBwNaVNbMKiVsRBuUz2acZCRZUHCle6ISCt8n+woSU4+SwedJvgrQFltdIWEnPLV/V3H" +
+        "KwQl1GQMRlq/T7HUJDVNhD8CbDxydhhdePThxt7EdyMhrhYxdJU1IcDHtyjCnK1w1XDxU8oNAoGAOnuUzocpHczE+SlgByKJfA53" +
+        "7+0ayRBuDl90Jo9/gLRNgGMcMQVpDdomjTFukPyKvUqgvz3heP3AmnmiWV/8Q0JO9997TnLHMVA6dq373IVVkTn5ovTmvKEB47jY" +
+        "7bYUVusBaT7nm082AlUlKVYHk39Jue+yAdMJ1MG+XDBZaD0CgYAXrBIyolGbpg71syNiSUIIwL4NBay4T5ZwdUcmKglB0+wawYwa" +
+        "hmdWtYycoamqmKxfU85IecFT+KUxc7/xm3PbAEAO/D5wWeDnWBHyK62wQyhD84Ris+ho/9Q1SFprLrIfgoUaNo3tjQzPAjAWFKQY" +
+        "nt3CRBSY5FPxloIJ3pujsQ=="
 
 /**
  * 离线账号 Yggdrasil 服务器，用于本地加载玩家皮肤、披风
@@ -74,9 +95,19 @@ class OfflineYggdrasilServer(
 ) {
     private val charactersByUuid = ConcurrentHashMap<String, Character>()
     private val charactersByName = ConcurrentHashMap<String, Character>()
-    private val keyPair: KeyPair = KeyPairGenerator.getInstance("RSA").apply {
-        initialize(2048)
-    }.genKeyPair()
+    /**
+     * [Maou] Kunci penanda tangan TETAP (sama di semua HP). Profil pemain lain dijawab oleh server skin HOST dan
+     * ditandatangani kunci host; tiap HP hanya mempercayai kunci server skin miliknya sendiri. Kunci acak per HP
+     * membuat tanda tangan di HP lain tidak cocok -> skin ditolak. Kunci ini hanya untuk skin offline lokal (bukan rahasia).
+     */
+    private val keyPair: KeyPair = run {
+        val kf = java.security.KeyFactory.getInstance("RSA")
+        val priv = kf.generatePrivate(
+            java.security.spec.PKCS8EncodedKeySpec(Base64.getDecoder().decode(SHARED_KEY_PKCS8))
+        ) as java.security.interfaces.RSAPrivateCrtKey
+        val pub = kf.generatePublic(java.security.spec.RSAPublicKeySpec(priv.modulus, priv.publicExponent))
+        KeyPair(pub, priv)
+    }
 
     /**
      * [Maou] Dipanggil (di thread IO) saat game menanyakan profil UUID yang belum dikenal. Pemanggil boleh menunggu
@@ -86,12 +117,32 @@ class OfflineYggdrasilServer(
     @Volatile
     var unknownProfileResolver: ((String) -> Unit)? = null
 
-    private val serverStartedLatch = CountDownLatch(1)
+    /** [Maou] Lapisan cadangan: dipanggil bila game meminta tekstur (hash) yang belum ada; unduh dari teman lalu jawab. */
+    @Volatile
+    var unknownTextureResolver: ((String) -> Unit)? = null
+
+    private var serverStartedLatch = CountDownLatch(1)
     private var isServerRunning = false
 
     private var server: EmbeddedServer<CIOApplicationEngine, CIOApplicationEngine.Configuration>? = null
 
+    /**
+     * [Maou] Port TETAP yang sama di semua HP. URL skin/cape di profil memakai "http://localhost:<port>/textures/<hash>",
+     * dan profil pemain lain dijawab oleh server skin HOST (port milik HP host). Dengan port acak, HP lain akan
+     * mengakses "localhost" miliknya sendiri di port yang salah -> skin host dan skin sendiri tidak pernah muncul.
+     * Karena setiap HP menyimpan semua skin yang disinkronkan, URL yang sama berlaku di semua HP.
+     */
     fun start() {
+        val first = if (port == 0) SHARED_PORT else port
+        if (!tryStart(first) && first != 0) {
+            Logger.warning(TAG, "Port $first tidak bisa dipakai, memakai port acak (skin lintas-HP mungkin tidak muncul)")
+            runCatching { server?.stop(200, 500) }
+            serverStartedLatch = CountDownLatch(1)
+            tryStart(0)
+        }
+    }
+
+    private fun tryStart(port: Int): Boolean {
         server = embeddedServer(CIO, port = port) {
             install(ContentNegotiation) {
                 json(Json {
@@ -122,7 +173,7 @@ class OfflineYggdrasilServer(
                     runCatched { call.respondText(profiles(call), ContentType.Application.Json) }
                 }
                 get("/sessionserver/session/minecraft/hasJoined") {
-                    runCatched { call.respondText(hasJoined(call), ContentType.Application.Json) }
+                    runCatched { call.respondText(withContext(Dispatchers.IO) { hasJoined(call) }, ContentType.Application.Json) }
                 }
                 post("/sessionserver/session/minecraft/join") {
                     runCatched { call.respond(HttpStatusCode.NoContent) }
@@ -141,13 +192,19 @@ class OfflineYggdrasilServer(
             }
         }
 
-        server?.start(wait = false)
+        try {
+            server?.start(wait = false)
+        } catch (e: Throwable) {
+            Logger.warning(TAG, "Gagal memulai server skin di port $port", e)
+            return false
+        }
 
         //等待服务器启动完成
         val startTimeout = 10L //10秒超时
         if (serverStartedLatch.await(startTimeout, TimeUnit.SECONDS)) {
             isServerRunning = true
         }
+        return isServerRunning
     }
 
     fun stop() {
@@ -284,9 +341,14 @@ class OfflineYggdrasilServer(
         }.toString()
         Logger.debug(TAG, "Try find profile with username $username")
 
-        val character = charactersByName[username.lowercase()] ?: return buildJsonObject { }.toString().also {
-            Logger.debug(TAG, "Profile with username $username not found")
+        val offlineId = java.util.UUID.nameUUIDFromBytes("OfflinePlayer:$username".toByteArray(Charsets.UTF_8))
+            .toString().replace("-", "")
+        if (!charactersByName.containsKey(username.lowercase())) {
+            //lapisan 1: coba unduh skin pemain ini sekarang juga dari siaran temannya
+            runCatching { unknownProfileResolver?.invoke(offlineId) }
         }
+        //lapisan 2: jika tetap belum ada, JANGAN menolak login (dulu `{}` = gagal masuk); beri profil polos tanpa skin
+        val character = charactersByName[username.lowercase()] ?: Character(uuid = offlineId, name = username)
 
         return character.toCompleteResponse("http://localhost:${getPort()}", this::sign).also {
             Logger.debug(TAG, "Found profile with username $username")
@@ -315,8 +377,7 @@ class OfflineYggdrasilServer(
         val hash = call.parameters["hash"] ?: return call.respond(HttpStatusCode.NotFound)
         Logger.debug(TAG, "Try find skin with hash $hash")
 
-        // 查找对应hash的皮肤或披风
-        val match = charactersByUuid.values
+        fun lookup(): ByteArray? = charactersByUuid.values
             .firstNotNullOfOrNull { char ->
                 when (hash) {
                     char.skin?.skinHash -> char.skin.skinBytes
@@ -324,6 +385,12 @@ class OfflineYggdrasilServer(
                     else -> null
                 }
             }
+        var match = lookup()
+        if (match == null) {
+            //lapisan 3: tekstur belum disinkronkan -> unduh dari teman lalu coba lagi
+            withContext(Dispatchers.IO) { runCatching { unknownTextureResolver?.invoke(hash) } }
+            match = lookup()
+        }
 
         if (match != null) {
             Logger.debug(TAG, "Skin with hash $hash found")

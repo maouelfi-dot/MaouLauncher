@@ -12,6 +12,10 @@
 
 ### Mabar Hotspot: skin tidak terlihat di HP lain
 - Skin teman kini diunduh **saat game menanyakannya** (maks. ±5 dtk), bukan hanya lewat siaran berkala. Game menyimpan hasil pencarian skin yang gagal, sehingga sebelumnya skin tetap Steve sampai game dimulai ulang.
+- **Penyebab utama skin host/skin sendiri tidak muncul di HP lain (ditemukan dari log):** URL skin berisi `localhost:<port server skin>` dan profil pemain dijawab server skin HOST. Port dulu acak per HP, jadi HP lain mengakses port yang salah. Kini server skin memakai **port tetap 24447** di semua HP (jatuh ke port acak jika terpakai).
+- Kunci tanda tangan profil kini **tetap** di semua HP (dulu acak per HP, sehingga tanda tangan host ditolak HP lain).
+- **Berlapis (cadangan bila satu lapis gagal):** (1) skin diunduh lewat siaran Mabar; (2) saat game menanyakan profil yang belum ada, skin diunduh saat itu juga; (3) saat game meminta tekstur yang belum ada, diunduh dari teman lalu dijawab; (4) login ke host tidak lagi ditolak bila skin pemain belum sempat tersinkron (dulu dijawab `{}`), pemain tetap masuk tanpa skin lalu skin menyusul.
+- Semua akun offline didukung (memang itulah yang dilayani server skin lokal ini).
 - Nama akun di tiap HP harus berbeda.
 
 ### Kejang saat memuat chunk (HP RAM kecil)
@@ -24,4 +28,4 @@
 
 ### Rilis
 - Perbaikan gagal unggah: repo memakai immutable releases, jadi rilis dibuat sebagai draft, APK diunggah, lalu dipublikasikan; `RELEASE_NOTES.md` kini ikut di-checkout.
-- Catatan rilis kini diambil dari `RELEASE_NOTES.md` di repo.
+- Catatan rilis kini diambil dari `RELEASE_NOTES.md`; rilis resmi (bukan pre-release) dengan tag `v<versi>`.

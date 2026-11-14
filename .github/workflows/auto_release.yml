@@ -2,7 +2,8 @@ name: Auto Release APK
 
 
 # [Maou] Setiap push ke main / cabang maou-* otomatis build APK lalu upload ke GitHub Release
-# (tag otomatis build-<nomor>, ditandai pre-release). Release resmi tetap lewat tag v* (release_ci.yml).
+# [Maou] Rilis RESMI (bukan pre-release) dengan tag v<versi> dari ZalithLauncher/gradle.properties (mis. v2.10.16).
+# Jika tag itu sudah pernah dipublikasikan (immutable, tidak bisa dipakai ulang), push berikutnya memakai v<versi>-b<nomor>.
 on:
   push:
     branches:
@@ -34,7 +35,9 @@ jobs:
       - name: Checkout (catatan rilis)
         uses: actions/checkout@v4
         with:
-          sparse-checkout: RELEASE_NOTES.md
+          sparse-checkout: |
+            RELEASE_NOTES.md
+            ZalithLauncher/gradle.properties
           sparse-checkout-cone-mode: false
 
       - name: Download Files
@@ -48,13 +51,31 @@ jobs:
           find ./artifacts -name "*.apk" -type f -exec cp {} ./apks/ \;
           echo "Found $(ls ./apks/ | wc -l) APK file(s)"
 
+      - name: Decide tag
+        id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VER=$(grep '^launcher_version_name=' ZalithLauncher/gradle.properties | cut -d= -f2 | tr -d '\r ')
+          TAG="v${VER}"
+          STATE=$(gh release view "$TAG" --repo "${{ github.repository }}" --json isDraft --jq '.isDraft' 2>/dev/null || echo none)
+          if [ "$STATE" = "true" ]; then
+            gh release delete "$TAG" --repo "${{ github.repository }}" --yes   # draft sisa percobaan sebelumnya
+          elif [ "$STATE" = "false" ]; then
+            TAG="v${VER}-b${{ github.run_number }}"                          # v<versi> sudah terbit: tag tidak bisa dipakai ulang
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "ver=$VER" >> "$GITHUB_OUTPUT"
+          echo "Tag rilis: $TAG"
+
       - name: Upload To Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: build-${{ github.run_number }}
-          name: Maou Launcher build ${{ github.run_number }}
+          tag_name: ${{ steps.tag.outputs.tag }}
+          name: Maou Launcher ${{ steps.tag.outputs.ver }}
           target_commitish: ${{ github.sha }}
-          prerelease: true
+          prerelease: false
+          make_latest: true
           #[Maou] repo memakai "immutable releases": aset hanya boleh diunggah saat masih draft, lalu baru dipublikasikan
           draft: true
           body_path: RELEASE_NOTES.md
@@ -65,4 +86,4 @@ jobs:
       - name: Publish Release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release edit "build-${{ github.run_number }}" --repo "${{ github.repository }}" --draft=false --prerelease
+        run: gh release edit "${{ steps.tag.outputs.tag }}" --repo "${{ github.repository }}" --draft=false --prerelease=false --latest

@@ -1,3 +1,20 @@
+## Maou Launcher 2.10.19 (tidak resmi, fork Zalith Launcher 2)
+
+> Belum diuji langsung di perangkat (tidak ada Android SDK saat dibuat); mohon laporkan jika ada masalah.
+
+### Tampilan menu utama
+- Nama akun kini teks biasa (gaya judul "MaouLauncher"), tanpa cahaya ungu. Label "Offline" juga teks biasa tanpa bingkai ungu.
+- Kartu hanya melingkupi bagian versi + tombol Luncurkan; karakter melayang tanpa kartu di belakangnya. Posisi kartu tetap bisa digeser.
+- Tutorial awal kini menyuruh mengetuk karakter Steve untuk membuat/mengganti akun.
+
+### Java
+- Java bawaan (Internal-8/17/21/25) kini bisa dihapus agar penyimpanan lega. Tombol "Pulihkan Java bawaan" memasangnya lagi saat launcher dibuka ulang.
+
+## Maou Launcher 2.10.18 (tidak resmi, fork Zalith Launcher 2)
+
+### Perbaikan crash saat membuka game (Android 8.1 / Oppo A3s)
+- Versi 2.10.17 langsung crash saat tombol Luncurkan ditekan: `ClassCastException: OpenSSLRSAPrivateKey cannot be cast to RSAPrivateCrtKey`. Penyebabnya kunci RSA tetap untuk skin offline dipaksa ke tipe `RSAPrivateCrtKey`, padahal Android 8.1 memberi tipe lain. Kini kunci publik dibaca dari pasangannya dan tidak ada cast; bila kunci tetap gagal dimuat, launcher memakai kunci acak supaya game tetap bisa dibuka.
+
 ## Maou Launcher 2.10.17 (tidak resmi, fork Zalith Launcher 2)
 
 > Perubahan di bawah ini belum diuji langsung di perangkat (Oppo A3s) saat dibuat; mohon laporkan jika ada masalah, sertakan `latest_game.log`.

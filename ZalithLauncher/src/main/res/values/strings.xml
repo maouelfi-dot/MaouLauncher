@@ -3003,7 +3003,7 @@
     <!-- Second line of the centered welcome card that opens the main-screen guide -->
     <string name="guide_main_welcome_text">Let\'s take a quick look at what the main screen can do.</string>
     <!-- Guide text next to the account avatar on the action menu card; tapping it opens the account manager -->
-    <string name="guide_main_account">Tap here to open the account manager, where you can add or manage your Minecraft accounts</string>
+    <string name="guide_main_account">Ketuk karakter Steve ini untuk membuat akun baru atau mengganti akun</string>
     <!-- Guide text next to the version entry on the action menu card; tapping it opens the version list -->
     <string name="guide_main_version_list">Tap here to open the version list, where every game version you install will be listed</string>
     <!-- Title of the guide card for the draggable action menu card -->

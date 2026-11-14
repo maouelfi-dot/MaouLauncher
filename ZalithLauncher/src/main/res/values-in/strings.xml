@@ -1385,7 +1385,7 @@
     <string name="home_version_card_inaccessible">Direktori Game Tidak Bisa Diakses</string>
     <string name="guide_main_welcome_title">Selamat datang di %s!</string>
     <string name="guide_main_welcome_text">Mari kita lihat sekilas fitur layar utama.</string>
-    <string name="guide_main_account">Ketuk di sini untuk membuka pengelola akun, tempat kamu dapat menambahkan atau mengelola akun Minecraft</string>
+    <string name="guide_main_account">Ketuk karakter Steve ini untuk membuat akun baru atau mengganti akun</string>
     <string name="guide_main_version_list">Ketuk di sini untuk membuka daftar versi, tempat semua versi game yang kamu instal akan tercantum</string>
     <string name="guide_main_card_drag_title">Kurang cocok dengan posisi menu aksi?</string>
     <string name="guide_main_card_drag_text">Tekan lama kartu untuk mengangkatnya, lalu seret dan letakkan untuk memasangnya di sisi seberang</string>

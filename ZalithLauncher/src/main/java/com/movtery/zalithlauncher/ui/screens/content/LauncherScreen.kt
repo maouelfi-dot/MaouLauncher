@@ -372,13 +372,12 @@ private fun AccountCharacter(
     )
 }
 
-/** [Maou] Name tag tanpa kotak hitam: nama dengan cahaya ungu + lencana tipe akun berbingkai tipis. */
+/** [Maou] Name tag: teks biasa (gaya judul "MaouLauncher"), tanpa cahaya dan tanpa bingkai. */
 @Composable
 private fun AccountNameTag(
     account: Account?,
     modifier: Modifier = Modifier,
 ) {
-    val accent = MaterialTheme.colorScheme.primary
     Column(
         modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
@@ -387,31 +386,17 @@ private fun AccountNameTag(
             text = account?.username ?: stringResource(R.string.account_add_new_account),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.titleMedium.copy(
-                shadow = androidx.compose.ui.graphics.Shadow(
-                    color = accent.copy(alpha = 0.9f),
-                    offset = androidx.compose.ui.geometry.Offset(0f, 2f),
-                    blurRadius = 18f
-                )
-            ),
-            fontWeight = FontWeight.ExtraBold,
-            color = Color.White
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onSurface
         )
         account?.let {
-            Surface(
-                modifier = Modifier.padding(top = 3.dp),
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = Color.Transparent,
-                border = androidx.compose.foundation.BorderStroke(1.dp, accent.copy(alpha = 0.85f)),
-                contentColor = Color.White.copy(alpha = 0.92f)
-            ) {
-                Text(
-                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 1.dp),
-                    text = getAccountTypeName(it),
-                    maxLines = 1,
-                    style = MaterialTheme.typography.labelSmall
-                )
-            }
+            Text(
+                modifier = Modifier.padding(top = 2.dp),
+                text = getAccountTypeName(it),
+                maxLines = 1,
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -589,14 +574,15 @@ private fun ActionMenuCardContent(
     toVersionManageScreen: () -> Unit,
     toVersionSettingsScreen: () -> Unit,
 ) {
-    BackgroundCard(
-        modifier = Modifier
-            .actionMenuDragAnchor()
-            .guideNode(GuideKeys.Main.Step.CardDrag)
-            .then(modifier),
-        shape = MaterialTheme.shapes.extraLarge
-    ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+    //[Maou] kartu hanya melingkupi bagian versi + tombol; karakter melayang tanpa kartu di belakangnya.
+    //Seluruh blok tetap bisa digeser (drag anchor ada di pembungkus luar).
+    run {
+        Column(
+            modifier = Modifier
+                .actionMenuDragAnchor()
+                .guideNode(GuideKeys.Main.Step.CardDrag)
+                .then(modifier)
+        ) {
             //[Maou] karakter menyatu di dalam kartu; ketuk karakter = ganti akun / skin
             var tagHeightPx by remember { mutableIntStateOf(0) }
             val tagDensity = LocalDensity.current
@@ -619,7 +605,13 @@ private fun ActionMenuCardContent(
                         dockedSide = dockedSide,
                         modifier = Modifier
                             .width(side)
-                            .fillMaxHeight(),
+                            .fillMaxHeight()
+                            //[Maou] tutorial: tunjuk karakter Steve (ketuk untuk membuat/mengganti akun)
+                            .guideNode(
+                                key = GuideKeys.Main.Step.Account,
+                                preferSide = GuideSide.Below,
+                                holeRadius = 48.dp
+                            ),
                         onTap = toAccountManageScreen
                     )
                 }
@@ -629,19 +621,19 @@ private fun ActionMenuCardContent(
                         .align(Alignment.TopCenter)
                         .padding(top = 10.dp, start = 8.dp, end = 8.dp)
                         .onSizeChanged { tagHeightPx = it.height }
-                        .guideNode(
-                            key = GuideKeys.Main.Step.Account,
-                            preferSide = GuideSide.Below,
-                            holeRadius = 20.dp
-                        )
                 )
             }
-            VersionsContent(
+            BackgroundCard(
                 modifier = Modifier.fillMaxWidth(),
-                onLaunchGame = onLaunchGame,
-                toVersionManageScreen = toVersionManageScreen,
-                toVersionSettingsScreen = toVersionSettingsScreen,
-            )
+                shape = MaterialTheme.shapes.extraLarge
+            ) {
+                VersionsContent(
+                    modifier = Modifier.fillMaxWidth(),
+                    onLaunchGame = onLaunchGame,
+                    toVersionManageScreen = toVersionManageScreen,
+                    toVersionSettingsScreen = toVersionSettingsScreen,
+                )
+            }
         }
     }
 }

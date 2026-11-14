@@ -451,7 +451,7 @@ private fun JavaRuntimeItem(
             if (onDeleteClick != null) {
                 IconButton(
                     //内置环境（未损坏）无法删除
-                    enabled = !runtime.isProvidedByLauncher || !runtime.isCompatible(),
+                    enabled = true, //[Maou] Java bawaan boleh dihapus; bisa diekstrak ulang lewat tombol Pulihkan
                     onClick = onDeleteClick
                 ) {
                     Icon(

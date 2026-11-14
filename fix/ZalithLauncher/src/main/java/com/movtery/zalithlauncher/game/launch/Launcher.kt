@@ -176,6 +176,8 @@ abstract class Launcher(
         progressFinalUserArgs(args)
 
         args.addAll(jvmArgs)
+        //[Maou] FPS Boost Mode: tulis options.txt ringan (atau kembalikan yang asli) sebelum game dimulai
+        com.movtery.zalithlauncher.game.boost.FpsBoost.applyForLaunch(args)
         args.add(0, "$runtimeHome/bin/java")
 
         LoggerBridge.appendTitle("JVM Args")

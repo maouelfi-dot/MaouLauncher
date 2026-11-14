@@ -51,6 +51,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.material3.Slider
+import com.movtery.zalithlauncher.game.boost.FpsBoost
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -572,6 +576,15 @@ private fun ControlOverview(
             )
         }
 
+        //[Maou] FPS Boost Mode (nyata) + batas FPS (hemat baterai)
+        item {
+            FpsBoostCard(
+                modifier = Modifier.fillMaxWidth(),
+                color = color,
+                contentColor = contentColor
+            )
+        }
+
         //发送键值
         item {
             MenuTextButton(
@@ -632,6 +645,58 @@ private fun ControlOverview(
  * [Maou] Kartu Mabar Hotspot di menu game: tidak perlu keluar launcher untuk melihat IP hotspot.
  * Teman cukup membuka Multiplayer lalu memilih entri "Mabar Hotspot" (terdeteksi otomatis).
  */
+@Composable
+private fun FpsBoostCard(
+    modifier: Modifier = Modifier,
+    color: Color,
+    contentColor: Color
+) {
+    var boost by remember { mutableStateOf(FpsBoost.isEnabled()) }
+    //geser = batas FPS (0 = tanpa batas); disimpan saat dilepas, berlaku di peluncuran berikutnya
+    var limit by remember { mutableStateOf(AllSettings.fpsLimit.state.toFloat()) }
+
+    Column(
+        modifier = modifier
+            .clip(MaterialTheme.shapes.large)
+            .background(color)
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text(
+            text = "FPS Boost Mode",
+            style = MaterialTheme.typography.titleSmall,
+            color = contentColor
+        )
+        MenuSwitchButton(
+            modifier = Modifier.fillMaxWidth(),
+            text = "FPS Boost: grafis cepat, tanpa awan/bayangan/partikel, jarak render dibatasi (FPS asli naik). Berlaku di peluncuran berikutnya.",
+            switch = boost,
+            onSwitch = {
+                boost = it
+                FpsBoost.setEnabled(it)
+            },
+            color = MaterialTheme.colorScheme.surfaceVariant,
+            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = if (limit < 10f) "Batas FPS: tanpa batas" else "Batas FPS: ${limit.toInt()} (hemat baterai)",
+            style = MaterialTheme.typography.bodySmall,
+            color = contentColor
+        )
+        Slider(
+            value = limit,
+            onValueChange = { limit = if (it < 10f) 0f else it.toInt().toFloat() },
+            onValueChangeFinished = { AllSettings.fpsLimit.save(limit.toInt()) },
+            valueRange = 0f..60f
+        )
+        Text(
+            text = "Berlaku di peluncuran berikutnya. Mematikan Boost mengembalikan pengaturan grafis asli.",
+            style = MaterialTheme.typography.bodySmall,
+            color = contentColor
+        )
+    }
+}
+
 @Composable
 private fun MabarHotspotCard(
     modifier: Modifier = Modifier,

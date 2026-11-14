@@ -30,6 +30,13 @@ jobs:
     runs-on: ubuntu-latest
     if: success()
     steps:
+      #[Maou] dibutuhkan agar RELEASE_NOTES.md ada di runner (sebelumnya: ENOENT)
+      - name: Checkout (catatan rilis)
+        uses: actions/checkout@v4
+        with:
+          sparse-checkout: RELEASE_NOTES.md
+          sparse-checkout-cone-mode: false
+
       - name: Download Files
         uses: actions/download-artifact@v8
         with:
@@ -48,7 +55,14 @@ jobs:
           name: Maou Launcher build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
           prerelease: true
+          #[Maou] repo memakai "immutable releases": aset hanya boleh diunggah saat masih draft, lalu baru dipublikasikan
+          draft: true
           body_path: RELEASE_NOTES.md
           generate_release_notes: false
           files: ./apks/*.apk
           fail_on_unmatched_files: true
+
+      - name: Publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "build-${{ github.run_number }}" --repo "${{ github.repository }}" --draft=false --prerelease

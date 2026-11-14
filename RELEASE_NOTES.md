@@ -17,5 +17,11 @@
 ### Kejang saat memuat chunk (HP RAM kecil)
 - Thread latar generator chunk dibatasi 2 (`-Dmax.bg.threads=2`) pada HP RAM < 3 GB agar tidak berebut CPU/RAM dengan thread render dan server.
 
+### Fitur baru: FPS Boost Mode (nyata)
+- Saklar di **menu melayang** dalam game. Menyetel `options.txt` sebelum game jalan: grafis cepat, tanpa pencahayaan halus, awan, bayangan entity, dan partikel minimal, biome blend 0, mipmap 0, jarak entity 0,5, jarak render maks 4 dan simulasi maks 5. FPS yang tampil di game dan launcher adalah FPS sungguhan.
+- Pengaturan asli disimpan di `options.txt.maou-boost` dan dikembalikan saat mode dimatikan.
+- **Batas FPS** (hemat baterai) kini juga bisa digeser di menu melayang, bukan hanya di pengaturan launcher. Berlaku di peluncuran berikutnya.
+
 ### Rilis
+- Perbaikan gagal unggah: repo memakai immutable releases, jadi rilis dibuat sebagai draft, APK diunggah, lalu dipublikasikan; `RELEASE_NOTES.md` kini ikut di-checkout.
 - Catatan rilis kini diambil dari `RELEASE_NOTES.md` di repo.

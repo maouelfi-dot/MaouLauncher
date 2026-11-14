@@ -383,6 +383,9 @@ abstract class Launcher(
                 args.add("-XX:MaxHeapFreeRatio=30")
             }
             args.add("-XX:CICompilerCount=2")
+            //[Maou] Prosesor 8 inti lemah (A53): Minecraft membuat 7 thread latar untuk generate chunk dan semuanya berebut CPU/RAM
+            //dengan thread render & server -> kejang saat memuat chunk. Batasi jadi 2 thread latar (lebih halus, tidak hang).
+            if (args.none { it.startsWith("-Dmax.bg.threads") }) args.add("-Dmax.bg.threads=2")
         }
 
         args.add("-Dorg.lwjgl.openal.libname=${PathManager.DIR_NATIVE_LIB}/libopenal.so")

@@ -71,7 +71,12 @@ object ScreenRecorder {
         }
         return try {
             //batasi sisi terpanjang 1280 px, angka genap untuk encoder; rasio sama dengan layar game
-            val scale = minOf(1f, 1280f / maxOf(view.width, view.height))
+            //[Maou] HP RAM kecil (<3GB): video 854 px & bitrate lebih rendah supaya game tidak ikut berat saat merekam
+            val totalMb = (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager)
+                .let { am -> android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.totalMem / (1024 * 1024) }
+            val lowEnd = totalMb < 3072
+            val maxSide = if (lowEnd) 854f else 1280f
+            val scale = minOf(1f, maxSide / maxOf(view.width, view.height))
             val w = (view.width * scale).toInt() and 1.inv()
             val h = (view.height * scale).toInt() and 1.inv()
 
@@ -85,7 +90,7 @@ object ScreenRecorder {
                 rec.setVideoSource(MediaRecorder.VideoSource.SURFACE)
                 rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 rec.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                rec.setVideoEncodingBitRate(5_000_000)
+                rec.setVideoEncodingBitRate(if (lowEnd) 2_500_000 else 5_000_000)
                 rec.setVideoFrameRate(30)
                 rec.setVideoSize(w, h)
                 rec.setOutputFile(file.absolutePath)
@@ -107,9 +112,12 @@ object ScreenRecorder {
             startedAt = SystemClock.elapsedRealtime()
             _recording.value = true
 
-            val t = HandlerThread("MaouRecFrames", Process.THREAD_PRIORITY_BACKGROUND).also { it.start() }
+            val t = HandlerThread("MaouRecFrames", Process.THREAD_PRIORITY_LESS_FAVORABLE).also { it.start() }
             thread = t
             handler = Handler(t.looper).also { it.post(frameTick) }
+            nextAt = SystemClock.elapsedRealtime()
+            interval = if (lowEnd) 50L else FRAME_INTERVAL_MS
+            gotFrame = false
             Logger.info(TAG, "Recording game frames ${w}x$h -> ${file.absolutePath}")
             true
         } catch (e: Throwable) {
@@ -119,54 +127,114 @@ object ScreenRecorder {
         }
     }
 
+    /**
+     * [Maou 2.10.16] Penangkap frame baru.
+     *
+     * Cara lama (TextureView.getBitmap dari thread latar) balapan dengan thread render: hasilnya garis-garis warna,
+     * blok hijau/magenta acak, dan langit hitam di awal video; lambat pula (~12 fps) sehingga video patah-patah
+     * walau game 30 fps. Sekarang memakai PixelCopy: salinan dilakukan GPU secara sinkron dengan buffer game
+     * (tanpa tearing), langsung diskalakan ke ukuran video, dan tidak membebani thread UI. Frame dikirim ke
+     * encoder lewat canvas hardware. Bila PixelCopy gagal berkali-kali, otomatis kembali ke cara lama di thread utama.
+     */
+    private var copySurface: Surface? = null
+    private var copySource: android.graphics.SurfaceTexture? = null
+    private var nextAt = 0L
+    private var gotFrame = false
+    @Volatile private var frameStart = 0L
+    @Volatile private var interval = 40L
+
+    private fun scheduleNext() {
+        val h = handler ?: return
+        if (!active) return
+        val now = SystemClock.elapsedRealtime()
+        //[Maou] Rekam tidak boleh membuat GAME patah-patah: ukur berapa lama satu frame dikerjakan lalu atur jarak antar
+        //frame agar perekam memakai paling banyak ~1/3 waktu (HP kuat: tetap ~30 fps; HP lemah: turun ke 10-20 fps).
+        val spent = now - frameStart
+        interval = ((interval * 3 + (spent * 3).coerceIn(FRAME_INTERVAL_MS, 100L)) / 4)
+        if (nextAt < now - interval) nextAt = now //tertinggal: jangan mengejar dengan ledakan frame
+        nextAt += interval
+        h.postDelayed(frameTick, maxOf(0L, nextAt - now))
+    }
+
     private val frameTick = object : Runnable {
         override fun run() {
             if (!active) return
-            val begin = SystemClock.elapsedRealtime()
+            frameStart = SystemClock.elapsedRealtime()
             try {
-                captureFrame()
-                failures = 0
+                if (captureOnMain) captureLegacy() else capturePixelCopy()
             } catch (e: Throwable) {
-                failures++
-                if (failures == 1) Logger.warning(TAG, "Frame capture failed", e)
-                //kalau salinan dari thread latar ditolak, coba lewat thread utama
-                if (failures == 3 && !captureOnMain) {
-                    captureOnMain = true
-                    failures = 0
-                }
-                if (failures >= 60) {
-                    Logger.error(TAG, "Too many capture failures, stopping")
-                    Handler(Looper.getMainLooper()).post { stop(null) }
-                    return
-                }
+                onCaptureFailure(e)
+                scheduleNext()
             }
-            val spent = SystemClock.elapsedRealtime() - begin
-            handler?.postDelayed(this, maxOf(1L, FRAME_INTERVAL_MS - spent))
         }
     }
 
-    private fun captureFrame() {
-        val view = gameView?.get() ?: return
-        val bmp = bitmap ?: return
-        val surf = surface ?: return
-        if (!view.isAvailable) return
+    private fun onCaptureFailure(e: Throwable?) {
+        failures++
+        if (failures == 1 && e != null) Logger.warning(TAG, "Frame capture failed", e)
+        if (failures == 8 && !captureOnMain) {
+            Logger.warning(TAG, "PixelCopy unavailable, falling back to getBitmap")
+            captureOnMain = true
+            failures = 0
+        }
+        if (failures >= 90) {
+            Logger.error(TAG, "Too many capture failures, stopping")
+            Handler(Looper.getMainLooper()).post { stop(null) }
+        }
+    }
 
-        if (captureOnMain) {
+    private fun capturePixelCopy() {
+        val view = gameView?.get() ?: run { scheduleNext(); return }
+        val bmp = bitmap ?: return
+        val st = view.surfaceTexture
+        if (!view.isAvailable || st == null) { scheduleNext(); return }
+        if (copySource !== st || copySurface?.isValid != true) {
+            runCatching { copySurface?.release() }
+            copySurface = Surface(st)
+            copySource = st
+        }
+        val src = copySurface ?: return
+        android.view.PixelCopy.request(src, bmp, { result ->
+            if (result == android.view.PixelCopy.SUCCESS) {
+                failures = 0
+                gotFrame = true
+                runCatching { pushFrame(bmp) }.onFailure { onCaptureFailure(it) }
+            } else if (result == android.view.PixelCopy.ERROR_SOURCE_NO_DATA && !gotFrame) {
+                //game belum menggambar apa pun: lewati (jangan tulis frame hitam)
+            } else {
+                onCaptureFailure(null)
+            }
+            scheduleNext()
+        }, handler ?: return)
+    }
+
+    private fun captureLegacy() {
+        val view = gameView?.get()
+        val bmp = bitmap
+        if (view != null && bmp != null && view.isAvailable) {
             val latch = CountDownLatch(1)
             Handler(Looper.getMainLooper()).post {
                 try {
                     view.getBitmap(bmp)
+                } catch (e: Throwable) {
+                    failures++
                 } finally {
                     latch.countDown()
                 }
             }
-            if (!latch.await(500, TimeUnit.MILLISECONDS)) return
-        } else {
-            view.getBitmap(bmp)
+            if (latch.await(500, TimeUnit.MILLISECONDS)) pushFrame(bmp)
         }
+        scheduleNext()
+    }
 
-        //frame game (tanpa kontrol/overlay) -> encoder
-        val canvas = surf.lockCanvas(null)
+    /** Frame game (tanpa kontrol/overlay) -> encoder. */
+    private fun pushFrame(bmp: Bitmap) {
+        val surf = surface ?: return
+        val canvas = try {
+            surf.lockHardwareCanvas()
+        } catch (_: Throwable) {
+            surf.lockCanvas(null)
+        }
         try {
             canvas.drawBitmap(bmp, 0f, 0f, null)
         } finally {
@@ -200,6 +268,9 @@ object ScreenRecorder {
         runCatching { thread?.quitSafely() }
         runCatching { recorder?.release() }
         runCatching { surface?.release() }
+        runCatching { copySurface?.release() }
+        copySurface = null
+        copySource = null
         runCatching { bitmap?.recycle() }
         thread = null
         handler = null

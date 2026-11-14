@@ -206,7 +206,6 @@ object MabarLan {
 
         /** "nama" -> "skinHash/capeHash" yang sudah disinkronkan */
         private val syncedPlayers = ConcurrentHashMap<String, String>()
-        private val fetching = ConcurrentHashMap.newKeySet<String>()
 
         private var multicastLock: WifiManager.MulticastLock? = null
         private lateinit var faviconUri: String
@@ -216,6 +215,7 @@ object MabarLan {
         private lateinit var iconBytes: ByteArray
 
         fun begin() {
+            skinServer?.unknownProfileResolver = { uuid -> resolveSkinNow(uuid) }
             iconBytes = context.assets.open("mabar/wifi_icon.png").use { it.readBytes() }
             faviconUri = "data:image/png;base64," + Base64.encodeToString(iconBytes, Base64.NO_WRAP)
 
@@ -239,6 +239,7 @@ object MabarLan {
         }
 
         override fun close() {
+            skinServer?.unknownProfileResolver = null
             alive = false
             closeables.forEach { runCatching { it.close() } }
             closeables.clear()
@@ -774,20 +775,43 @@ object MabarLan {
             }
         }
 
+        /** Siaran skin terakhir tiap pemain: nama(kecil) -> (alamat calon, isi paket). Dipakai untuk unduh sesuai permintaan. */
+        private val skinBeacons = ConcurrentHashMap<String, Pair<List<String>, List<String>>>()
+        private val skinLocks = ConcurrentHashMap<String, Any>()
+
+        private fun offlineUuidOf(name: String): String =
+            java.util.UUID.nameUUIDFromBytes("OfflinePlayer:$name".toByteArray(Charsets.UTF_8)).toString().replace("-", "")
+
         private fun onSkinBeacon(cands: List<String>, p: List<String>) {
-            val server = skinServer ?: return
+            val name = p[2]
+            if (skinServer == null) return
+            if (name.equals(account.username, ignoreCase = true)) return
+            if (p[7].toIntOrNull() == null) return
+            skinBeacons[name.lowercase()] = cands to p
+            if (syncedPlayers[name] == "${p[5]}/${p[6]}") return
+            pool.execute { syncSkin(cands, p) }
+        }
+
+        /** Dipanggil server skin saat game menanyakan UUID yang belum ada: unduh sekarang juga (maks ±5 dtk). */
+        private fun resolveSkinNow(uuid: String) {
+            val hit = skinBeacons.values.firstOrNull { (_, p) ->
+                p[3].replace("-", "").equals(uuid, ignoreCase = true) || offlineUuidOf(p[2]).equals(uuid, ignoreCase = true)
+            } ?: return
+            syncSkin(hit.first, hit.second)
+        }
+
+        /** @return true jika skin/cape pemain itu sudah tersedia di server skin lokal. */
+        private fun syncSkin(cands: List<String>, p: List<String>): Boolean {
+            val server = skinServer ?: return false
             val name = p[2]
             val uuid = p[3]
             val slim = p[4] == "slim"
             val skinHash = p[5]
             val capeHash = p[6]
-            val port = p[7].toIntOrNull() ?: return
-            if (name.equals(account.username, ignoreCase = true)) return
+            val port = p[7].toIntOrNull() ?: return false
             val version = "$skinHash/$capeHash"
-            if (syncedPlayers[name] == version) return
-            if (!fetching.add("$name:$version")) return
-
-            pool.execute {
+            synchronized(skinLocks.getOrPut(name.lowercase()) { Any() }) {
+                if (syncedPlayers[name] == version) return true
                 try {
                     var skin: ByteArray? = null
                     var cape: ByteArray? = null
@@ -803,7 +827,7 @@ object MabarLan {
                     }
                     if (skin == null && cape == null) {
                         Logger.warning(TAG, "Skin of $name not reachable at ${cands.joinToString()}:$port")
-                        return@execute
+                        return false
                     }
                     server.addRemoteCharacter(
                         name = name,
@@ -814,10 +838,10 @@ object MabarLan {
                     )
                     syncedPlayers[name] = version
                     Logger.info(TAG, "Synced skin/cape of $name from $from")
+                    return true
                 } catch (e: Throwable) {
                     Logger.warning(TAG, "Failed to sync skin of $name", e)
-                } finally {
-                    fetching.remove("$name:$version")
+                    return false
                 }
             }
         }

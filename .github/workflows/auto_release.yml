@@ -1,8 +1,8 @@
 name: Auto Release APK
 
-# [Maou] Setiap push ke main / cabang maou-*: build APK Release (arm + arm64 saja), lalu langsung
-# dirilis di GitHub Releases dengan tag v<versi> (versi dibaca dari ZalithLauncher/gradle.properties).
-# Push lagi dengan versi yang sama = APK di rilis itu ditimpa. Naikkan launcher_version_name untuk rilis baru.
+
+# [Maou] Setiap push ke main / cabang maou-* otomatis build APK lalu upload ke GitHub Release
+# (tag otomatis build-<nomor>, ditandai pre-release). Release resmi tetap lewat tag v* (release_ci.yml).
 on:
   push:
     branches:
@@ -10,10 +10,6 @@ on:
       - master
       - 'maou-*'
   workflow_dispatch:
-
-concurrency:
-  group: auto-release-${{ github.ref }}
-  cancel-in-progress: true
 
 permissions:
   contents: write
@@ -34,16 +30,6 @@ jobs:
     runs-on: ubuntu-latest
     if: success()
     steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-
-      - name: Read version
-        id: ver
-        run: |
-          version=$(grep -E '^launcher_version_name=' ZalithLauncher/gradle.properties | cut -d= -f2 | tr -d '[:space:]')
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          echo "Versi: $version"
-
       - name: Download Files
         uses: actions/download-artifact@v8
         with:
@@ -53,23 +39,16 @@ jobs:
         run: |
           mkdir -p ./apks
           find ./artifacts -name "*.apk" -type f -exec cp {} ./apks/ \;
-          ls -la ./apks/
           echo "Found $(ls ./apks/ | wc -l) APK file(s)"
 
-      - name: Publish Release
+      - name: Upload To Release
         uses: softprops/action-gh-release@v3
         with:
-          tag_name: v${{ steps.ver.outputs.version }}
-          name: Maou Launcher ${{ steps.ver.outputs.version }}
+          tag_name: build-${{ github.run_number }}
+          name: Maou Launcher build ${{ github.run_number }}
           target_commitish: ${{ github.sha }}
-          prerelease: false
-          make_latest: true
-          generate_release_notes: true
-          body: |
-            **Pilih APK yang sesuai HP kamu:**
-            - `arm64` -> HP 64-bit (hampir semua HP sekarang). Pilih yang ini kalau ragu.
-            - `arm` -> HP 32-bit lama.
-
-            Unduh cukup SATU APK saja. Cek ukuran file hasil unduhan sama dengan yang tertera di daftar Assets sebelum dipasang.
+          prerelease: true
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: false
           files: ./apks/*.apk
           fail_on_unmatched_files: true

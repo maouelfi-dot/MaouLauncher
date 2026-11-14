@@ -1,0 +1,54 @@
+name: Auto Release APK
+
+
+# [Maou] Setiap push ke main / cabang maou-* otomatis build APK lalu upload ke GitHub Release
+# (tag otomatis build-<nomor>, ditandai pre-release). Release resmi tetap lewat tag v* (release_ci.yml).
+on:
+  push:
+    branches:
+      - main
+      - master
+      - 'maou-*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  Build:
+    uses: ./.github/workflows/build.yml
+    with:
+      variant: Release
+    secrets:
+      KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
+      STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
+      OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
+      CURSEFORGE_API_KEY: ${{ secrets.CURSEFORGE_API_KEY }}
+
+  Upload-to-Release:
+    needs: Build
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Download Files
+        uses: actions/download-artifact@v8
+        with:
+          path: ./artifacts
+
+      - name: Collect APKs
+        run: |
+          mkdir -p ./apks
+          find ./artifacts -name "*.apk" -type f -exec cp {} ./apks/ \;
+          echo "Found $(ls ./apks/ | wc -l) APK file(s)"
+
+      - name: Upload To Release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Maou Launcher build ${{ github.run_number }}
+          target_commitish: ${{ github.sha }}
+          prerelease: true
+          body_path: RELEASE_NOTES.md
+          generate_release_notes: false
+          files: ./apks/*.apk
+          fail_on_unmatched_files: true

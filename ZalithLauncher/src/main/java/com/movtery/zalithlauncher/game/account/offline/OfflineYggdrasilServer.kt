@@ -42,7 +42,9 @@ import io.ktor.server.routing.RoutingContext
 import io.ktor.server.routing.get
 import io.ktor.server.routing.post
 import io.ktor.server.routing.routing
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
@@ -75,6 +77,14 @@ class OfflineYggdrasilServer(
     private val keyPair: KeyPair = KeyPairGenerator.getInstance("RSA").apply {
         initialize(2048)
     }.genKeyPair()
+
+    /**
+     * [Maou] Dipanggil (di thread IO) saat game menanyakan profil UUID yang belum dikenal. Pemanggil boleh menunggu
+     * beberapa detik sambil mengunduh skin teman, supaya pencarian PERTAMA langsung berhasil. (Game menyimpan
+     * hasil pencarian yang gagal, sehingga skin tidak muncul lagi sampai game dimulai ulang.)
+     */
+    @Volatile
+    var unknownProfileResolver: ((String) -> Unit)? = null
 
     private val serverStartedLatch = CountDownLatch(1)
     private var isServerRunning = false
@@ -118,7 +128,7 @@ class OfflineYggdrasilServer(
                     runCatched { call.respond(HttpStatusCode.NoContent) }
                 }
                 get("/sessionserver/session/minecraft/profile/{uuid}") {
-                    runCatched { call.respondText(profile(call), ContentType.Application.Json) }
+                    runCatched { call.respondText(withContext(Dispatchers.IO) { profile(call) }, ContentType.Application.Json) }
                 }
                 get("/textures/{hash}") {
                     runCatched { call.respond(texture(call)) }
@@ -289,7 +299,10 @@ class OfflineYggdrasilServer(
         }.toString()
         Logger.debug(TAG, "Try find profile with uuid $uuid")
 
-        val character = charactersByUuid[uuid.lowercase()] ?: return buildJsonObject { }.toString().also {
+        if (!charactersByUuid.containsKey(uuid.lowercase().replace("-", ""))) {
+            runCatching { unknownProfileResolver?.invoke(uuid.lowercase().replace("-", "")) }
+        }
+        val character = charactersByUuid[uuid.lowercase().replace("-", "")] ?: return buildJsonObject { }.toString().also {
             Logger.debug(TAG, "Profile with uuid $uuid not found")
         }
 

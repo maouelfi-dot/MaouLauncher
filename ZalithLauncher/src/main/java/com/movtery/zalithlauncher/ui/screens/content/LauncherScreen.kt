@@ -151,6 +151,13 @@ fun LauncherScreen(
         startGuideOnce(GuideKeys.Main)
     }
 
+    //[Maou] Setelah game berhenti/crash: jelaskan penyebabnya (mod kurang library, tidak cocok versi, RAM habis, dll)
+    var diagnosis by remember { mutableStateOf<List<com.movtery.zalithlauncher.game.diagnose.Finding>?>(null) }
+    LaunchedEffect(Unit) {
+        diagnosis = withContext(Dispatchers.IO) { com.movtery.zalithlauncher.game.diagnose.DiagnosisStore.pending() }
+    }
+    diagnosis?.let { DiagnosisDialog(it) { diagnosis = null } }
+
     BaseScreen(
         screenKey = NormalNavKey.LauncherMain,
         currentKey = backStackViewModel.mainScreen.currentKey

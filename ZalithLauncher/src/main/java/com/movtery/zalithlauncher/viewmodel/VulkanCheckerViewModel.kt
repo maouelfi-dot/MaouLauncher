@@ -21,7 +21,9 @@ package com.movtery.zalithlauncher.viewmodel
 import androidx.annotation.Keep
 import androidx.lifecycle.ViewModel
 import com.movtery.zalithlauncher.game.plugin.driver.Driver
+import com.movtery.zalithlauncher.context.GlobalContext
 import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
+import com.movtery.zalithlauncher.utils.device.VulkanHardware
 import com.movtery.zalithlauncher.game.version.installed.Version
 import com.movtery.zalithlauncher.game.version.installed.utils.isLowerVer
 import com.movtery.zalithlauncher.path.PathManager
@@ -124,6 +126,9 @@ class VulkanCheckerViewModel: ViewModel() {
     suspend fun ensureSupported(version: Version): Boolean {
         val driver = DriverPluginManager.getDriver(version.getDriver())
         val useTurnip = !driver.isLauncher
+        //[Maou] HP tanpa Vulkan 1.2 (mis. Oppo A3s): langsung dianggap tidak didukung, tanpa dialog & tanpa pemeriksaan native;
+        //peluncuran lanjut memakai renderer OpenGL dan game dipaksa OpenGL (lihat GameHandler)
+        if (!useTurnip && !VulkanHardware.supportsVulkan12(GlobalContext)) return false
         val mcVersion = version.getVersionInfo()?.minecraftVersion?.let(::normalizeMcVersion)
         val path = driverPath(useTurnip, driver)
 

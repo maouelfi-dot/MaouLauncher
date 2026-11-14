@@ -178,6 +178,8 @@ abstract class Launcher(
         args.addAll(jvmArgs)
         //[Maou] FPS Boost Mode: tulis options.txt ringan (atau kembalikan yang asli) sebelum game dimulai
         com.movtery.zalithlauncher.game.boost.FpsBoost.applyForLaunch(args)
+        //[Maou] periksa folder mods (library hilang, mod ganda, versi Minecraft tidak cocok) untuk diagnosa
+        com.movtery.zalithlauncher.game.diagnose.DiagnosisStore.onLaunch(args)
         args.add(0, "$runtimeHome/bin/java")
 
         LoggerBridge.appendTitle("JVM Args")
@@ -351,7 +353,7 @@ abstract class Launcher(
         val cappedRam = when {
             deviceMb <= 0 -> ramAllocation
             //[Maou] 42% (dulu 36%): modpack besar (100+ mod) kehabisan heap di ±580MB sehingga GC penuh berulang = kejang-kejang
-            lowRam -> ramAllocation.coerceAtMost(maxOf(512, deviceMb * 42 / 100))
+            lowRam -> ramAllocation.coerceAtMost(maxOf(512, deviceMb * com.movtery.zalithlauncher.game.diagnose.HeapTuner.percent() / 100)) //[Maou] persentase belajar dari OOM / RAM habis
             else -> ramAllocation.coerceAtMost(maxOf(1024, deviceMb - 900))
         }
         val ramAllocationString = cappedRam.toString()

@@ -38,7 +38,9 @@ import com.movtery.zalithlauncher.game.launch.MCOptions
 import com.movtery.zalithlauncher.game.launch.loadLanguage
 import com.movtery.zalithlauncher.game.sdl.SdlBridge
 import com.movtery.zalithlauncher.game.sdl.handleGamepadKeyEvent
+import com.movtery.zalithlauncher.game.plugin.driver.DriverPluginManager
 import com.movtery.zalithlauncher.game.version.installed.GraphicsApi
+import com.movtery.zalithlauncher.utils.device.VulkanHardware
 import com.movtery.zalithlauncher.game.version.installed.utils.isLowerVer
 import com.movtery.zalithlauncher.setting.AllSettings
 import com.movtery.zalithlauncher.setting.enums.GamepadInputMode
@@ -54,8 +56,11 @@ import com.movtery.zalithlauncher.viewmodel.GamepadViewModel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import com.movtery.zalithlauncher.utils.logging.Logger
 import org.libsdl.app.SDLActivity
 import org.lwjgl.glfw.CallbackBridge
+
+private const val TAG = "GameHandler"
 
 class GameHandler(
     val activity: Activity,
@@ -117,7 +122,15 @@ class GameHandler(
 
             val graphicsApi = version.getGraphicsApi()
             val graphicsOption = "preferredGraphicsBackend"
-            when (graphicsApi) {
+            //[Maou] Minecraft 26.2+ punya backend Vulkan. Kalau HP tidak mendukung Vulkan 1.2 (dan tidak memakai driver Vulkan
+            //tambahan), game WAJIB OpenGL: nilai "vulkan"/"default" lama di options.txt (dari versi snapshot, launcher lain,
+            //atau pilihan sebelumnya) tidak boleh dipakai karena membuat game crash / layar hitam di HP tanpa Vulkan.
+            val deviceCannotVulkan = !VulkanHardware.supportsVulkan12(activity) &&
+                DriverPluginManager.getDriver(version.getDriver()).isLauncher
+            if (deviceCannotVulkan) {
+                Logger.info(TAG, "Device has no Vulkan 1.2, forcing OpenGL backend")
+                set(graphicsOption, GraphicsApi.OPENGL.option)
+            } else when (graphicsApi) {
                 GraphicsApi.DEFAULT, GraphicsApi.DEFAULT_OPENGL -> {
                     if (!containsKey(graphicsOption)) {
                         set(graphicsOption, graphicsApi.option)

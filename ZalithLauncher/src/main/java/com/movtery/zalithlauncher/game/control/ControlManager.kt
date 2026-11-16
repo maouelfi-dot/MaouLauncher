@@ -83,6 +83,11 @@ object ControlManager {
             if (files.isEmpty()) {
                 unpackDefaultControl(context)
             }
+            //[Maou] layout mengemudi (stir, gas, rem, handbrake); tidak menimpa jika sudah ada / diubah pengguna
+            runCatching {
+                val driving = File(PathManager.DIR_CONTROL_LAYOUTS, "maou_driving_layout.json")
+                if (!driving.exists()) context.copyAssetFile(fileName = "maou_driving_layout.json", output = driving, overwrite = false)
+            }
             refresh()
         }
     }

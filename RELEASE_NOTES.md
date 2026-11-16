@@ -1,3 +1,8 @@
+## Maou Launcher (rilis berikutnya) - tidak resmi, fork Zalith Launcher 2
+
+### Layout kontrol mengemudi (baru)
+- Layout "Mobil (Stir & Gas)" otomatis tersedia di daftar layout kontrol: tombol Kiri/Kanan (stir), GAS, REM, Handbrake (Space), Klakson (H), Lampu (L), Kamera (F5), dan Masuk/Keluar (klik kanan). Cocok dipakai dengan mod mobil seperti Automobility. Belum diuji di perangkat.
+
 ## Maou Launcher 2.10.23 (tidak resmi, fork Zalith Launcher 2)
 
 ### Patah-patah saat pertama masuk dunia (HP RAM kecil)

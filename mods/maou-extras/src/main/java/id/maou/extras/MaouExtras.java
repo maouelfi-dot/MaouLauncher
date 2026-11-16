@@ -98,9 +98,6 @@ public class MaouExtras implements ModInitializer {
     }
 
     @Override
-    public void onInitializeServer() { /* tidak dipakai */ }
-
-    @Override
     public void onInitialize() {
         ServerLifecycleEvents.SERVER_STARTED.register(this::onStart);
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> save());

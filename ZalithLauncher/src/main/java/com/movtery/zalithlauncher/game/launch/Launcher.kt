@@ -358,7 +358,9 @@ abstract class Launcher(
         }
         val ramAllocationString = cappedRam.toString()
         // Low RAM: start smaller than the maximum so the whole heap is not committed up front
-        val initialRam = if (lowRam) maxOf(minOf(cappedRam, 384), cappedRam / 2) else cappedRam
+        //[Maou] Awal masuk dunia: heap yang terlalu kecil harus tumbuh berkali-kali sambil memuat chunk = patah-patah.
+        //Mulai dari 75% batas heap (bukan 50%) supaya pembesaran heap saat join world jauh berkurang.
+        val initialRam = if (lowRam) maxOf(minOf(cappedRam, 384), cappedRam * 3 / 4) else cappedRam
         args.add("-Xms${initialRam}M")
         args.add("-Xmx${ramAllocationString}M")
 

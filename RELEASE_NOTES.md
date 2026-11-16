@@ -1,3 +1,8 @@
+## Maou Launcher 2.10.23 (tidak resmi, fork Zalith Launcher 2)
+
+### Patah-patah saat pertama masuk dunia (HP RAM kecil)
+- Heap awal JVM kini 75% dari batas (sebelumnya 50%), sehingga heap tidak perlu membesar berkali-kali saat chunk pertama dimuat. Belum diuji di perangkat.
+
 ## Maou Launcher 2.10.22 (tidak resmi, fork Zalith Launcher 2)
 
 > Belum diuji langsung di perangkat; mohon laporkan jika ada masalah.

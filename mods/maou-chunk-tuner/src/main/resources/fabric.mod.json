@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "maou_chunk_tuner",
+  "version": "${version}",
+  "name": "Maou Chunk Tuner",
+  "description": "Menurunkan jarak render otomatis saat game berat (mis. saat memuat chunk) lalu menaikkannya lagi saat stabil. Khusus HP RAM kecil. Client saja.",
+  "authors": ["Maou Launcher"],
+  "license": "GPL-3.0-or-later",
+  "environment": "client",
+  "entrypoints": { "client": ["id.maou.chunktuner.MaouChunkTuner"] },
+  "depends": { "fabricloader": ">=0.15.11", "minecraft": "1.21.1", "java": ">=21", "fabric-api": "*" }
+}

@@ -1471,4 +1471,7 @@
     <string name="home_server_card_refresh_failed">Gagal memperbarui informasi server</string>
     <string name="settings_renderer_max_refresh_rate_title">Minta Refresh Rate Maksimum</string>
     <string name="settings_renderer_max_refresh_rate_summary">Minta layar beralih ke refresh rate tertinggi yang didukung pada resolusi saat ini untuk menghilangkan batas frame rate pada beberapa perangkat</string>
+    <string name="maou_perf_pack">Paket Performa</string>
+    <string name="maou_perf_pack_start">Mengunduh mod performa dari Modrinth…</string>
+    <string name="maou_perf_pack_done">Paket Performa: %1$d terpasang, %2$d sudah ada, %3$d gagal/tidak tersedia untuk versi ini</string>
 </resources>

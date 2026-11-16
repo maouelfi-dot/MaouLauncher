@@ -734,6 +734,9 @@ fun ModsManagerScreen(
                                     }
                                 },
                                 modsDir = modsDir,
+                                perfPackMcVersion = version.getVersionInfo()
+                                    ?.takeIf { info -> info.loaderInfos.any { it.loader == ModLoader.FABRIC } }
+                                    ?.minecraftVersion,
                                 onDeleteAll = {
                                     if (
                                         updaterViewModel.modsUpdateOperation == ModsUpdateOperation.None &&
@@ -841,6 +844,7 @@ private fun ModsActionsHeader(
     hasModLoader: Boolean,
     onUpdateMods: () -> Unit,
     modsDir: File,
+    perfPackMcVersion: String? = null, //[Maou] versi MC untuk Paket Performa (null = tombol disembunyikan)
     onDeleteAll: () -> Unit,
     isModsSelected: Boolean,
     canUpdate: Boolean,
@@ -1044,6 +1048,29 @@ private fun ModsActionsHeader(
                         painter = painterResource(R.drawable.ic_download_2_filled),
                         text = stringResource(R.string.generic_download)
                     )
+
+                    if (perfPackMcVersion != null) {
+                        val perfContext = androidx.compose.ui.platform.LocalContext.current
+                        val perfScope = androidx.compose.runtime.rememberCoroutineScope()
+                        IconTextButton(
+                            onClick = {
+                                Toast.makeText(perfContext, perfContext.getString(R.string.maou_perf_pack_start), Toast.LENGTH_SHORT).show()
+                                perfScope.launch(Dispatchers.IO) {
+                                    val res = com.movtery.zalithlauncher.game.boost.PerformancePack.install(perfPackMcVersion, modsDir)
+                                    withContext(Dispatchers.Main) {
+                                        val msg = perfContext.getString(
+                                            R.string.maou_perf_pack_done,
+                                            res.installed.size, res.already.size, res.failed.size
+                                        )
+                                        Toast.makeText(perfContext, msg, Toast.LENGTH_LONG).show()
+                                        refresh()
+                                    }
+                                }
+                            },
+                            painter = painterResource(R.drawable.ic_download_2_filled),
+                            text = stringResource(R.string.maou_perf_pack)
+                        )
+                    }
 
                     IconButton(
                         onClick = refresh

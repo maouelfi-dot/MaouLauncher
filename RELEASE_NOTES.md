@@ -1,3 +1,11 @@
+## Maou Launcher 2.10.22 (tidak resmi, fork Zalith Launcher 2)
+
+> Belum diuji langsung di perangkat; mohon laporkan jika ada masalah.
+
+### Paket Performa (baru)
+- Di layar Mod (versi Fabric) ada tombol **Paket Performa**: mengunduh Sodium, FerriteCore, ModernFix, ImmediatelyFast, dan Entity Culling dari Modrinth sesuai versi Minecraft. Yang sudah terpasang dilewati; yang tidak tersedia untuk versi itu dilaporkan di notifikasi.
+- Mod `mods/maou-chunk-tuner` (render distance adaptif) ditambahkan ke repo; build lewat GitHub Actions.
+
 ## Maou Launcher 2.10.21 (tidak resmi, fork Zalith Launcher 2)
 
 > Belum diuji langsung di perangkat; mohon laporkan jika ada masalah (sertakan `latest_game.log`).

@@ -14,7 +14,9 @@ import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.particles.DustParticleOptions;
 import net.minecraft.core.particles.ParticleTypes;
+import org.joml.Vector3f;
 import net.minecraft.network.chat.ClickEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
@@ -66,6 +68,11 @@ public class MaouExtras implements ModInitializer {
         COSMETICS.put("api", 250);
         COSMETICS.put("hati", 200);
         COSMETICS.put("sihir", 350);
+        COSMETICS.put("sayap", 600);
+        COSMETICS.put("pelangi", 450);
+        COSMETICS.put("mahkota", 500);
+        COSMETICS.put("salju", 300);
+        COSMETICS.put("jiwa", 400);
     }
 
     private static ItemStack stackFor(String id) {
@@ -207,6 +214,34 @@ public class MaouExtras implements ModInitializer {
                     }
                     case "api" -> lvl.sendParticles(ParticleTypes.FLAME, p.getX(), p.getY() + 0.1, p.getZ(), 2, 0.25, 0.05, 0.25, 0.01);
                     case "hati" -> lvl.sendParticles(ParticleTypes.HEART, p.getX(), p.getY() + 2.3, p.getZ(), 1, 0.3, 0.1, 0.3, 0);
+                    case "sayap" -> {
+                        double yaw = Math.toRadians(p.getYRot());
+                        double bx = Math.sin(yaw), bz = -Math.cos(yaw); // arah belakang
+                        double sx = Math.cos(yaw), sz = Math.sin(yaw);  // arah samping
+                        DustParticleOptions wing = new DustParticleOptions(new Vector3f(0.95f, 0.85f, 1.0f), 0.9f);
+                        for (int k = 0; k < 5; k++) {
+                            double lat = 0.25 + 0.2 * k;
+                            double h = 1.55 + 0.12 * k - 0.05 * k * k * 0.3;
+                            for (int side = -1; side <= 1; side += 2) {
+                                lvl.sendParticles(wing, p.getX() + bx * 0.3 + sx * lat * side, p.getY() + h, p.getZ() + bz * 0.3 + sz * lat * side, 1, 0, 0, 0, 0);
+                            }
+                        }
+                    }
+                    case "pelangi" -> {
+                        float h = (float) ((tickCounter % 60) / 60.0);
+                        int rgb = java.awt.Color.HSBtoRGB(h, 0.9f, 1.0f);
+                        DustParticleOptions col = new DustParticleOptions(new Vector3f(((rgb >> 16) & 255) / 255f, ((rgb >> 8) & 255) / 255f, (rgb & 255) / 255f), 1.1f);
+                        lvl.sendParticles(col, p.getX(), p.getY() + 0.1, p.getZ(), 4, 0.25, 0.02, 0.25, 0);
+                    }
+                    case "mahkota" -> {
+                        DustParticleOptions gold = new DustParticleOptions(new Vector3f(1.0f, 0.8f, 0.1f), 1.0f);
+                        for (int i = 0; i < 5; i++) {
+                            double a = t * 0.5 + i * Math.PI * 2 / 5;
+                            lvl.sendParticles(gold, p.getX() + Math.cos(a) * 0.3, p.getY() + 2.1 + (i % 2) * 0.12, p.getZ() + Math.sin(a) * 0.3, 1, 0, 0, 0, 0);
+                        }
+                    }
+                    case "salju" -> lvl.sendParticles(ParticleTypes.SNOWFLAKE, p.getX(), p.getY() + 1.2, p.getZ(), 4, 0.6, 0.9, 0.6, 0.01);
+                    case "jiwa" -> lvl.sendParticles(ParticleTypes.SOUL_FIRE_FLAME, p.getX(), p.getY() + 0.1, p.getZ(), 2, 0.25, 0.05, 0.25, 0.01);
                     case "sihir" -> lvl.sendParticles(ParticleTypes.ENCHANT, p.getX(), p.getY() + 1.2, p.getZ(), 6, 0.5, 0.8, 0.5, 0.2);
                     default -> { }
                 }

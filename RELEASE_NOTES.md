@@ -1,3 +1,16 @@
+## Maou Launcher 2.10.21 (tidak resmi, fork Zalith Launcher 2)
+
+> Belum diuji langsung di perangkat; mohon laporkan jika ada masalah (sertakan `latest_game.log`).
+
+### Modpack besar di HP RAM kecil
+- Untuk HP RAM < 3 GB dengan 40+ mod: kompiler JIT ringan (C1), code cache dibatasi 96 MB, metaspace dibatasi 384 MB, stack 1 MB. Tujuannya mengurangi lonjakan RAM saat memuat ratusan class mod sehingga game tidak dibunuh sistem (FC).
+
+### Rekam layar
+- Kini 720p (sisi panjang 1280 px) di semua HP, target 30 fps, bitrate 3,5 Mbps (HP RAM kecil) / 6 Mbps. Jika game ikut berat, perekam menurunkan frekuensinya sendiri agar game tidak patah-patah.
+
+### Penyimpanan
+- Log launcher/native > 7 hari dan cache unduhan sementara > 1 hari dibersihkan otomatis di latar. Dunia, mod, pengaturan, dan rekaman tidak disentuh.
+
 ## Maou Launcher 2.10.19 (tidak resmi, fork Zalith Launcher 2)
 
 > Belum diuji langsung di perangkat (tidak ada Android SDK saat dibuat); mohon laporkan jika ada masalah.

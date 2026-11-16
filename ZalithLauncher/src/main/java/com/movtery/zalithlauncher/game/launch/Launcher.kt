@@ -392,6 +392,9 @@ abstract class Launcher(
             if (args.none { it.startsWith("-Dmax.bg.threads") }) args.add("-Dmax.bg.threads=2")
         }
 
+        //[Maou] modpack besar di HP RAM kecil: JIT ringan + batas code cache/metaspace
+        runCatching { com.movtery.zalithlauncher.game.boost.ModpackGuard.apply(args, File(chdir()), lowRam) }
+
         args.add("-Dorg.lwjgl.openal.libname=${PathManager.DIR_NATIVE_LIB}/libopenal.so")
 
         // Force LWJGL to use the Freetype library intended for it, instead of using the one

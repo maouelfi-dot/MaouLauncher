@@ -75,7 +75,7 @@ object ScreenRecorder {
             val totalMb = (context.getSystemService(Context.ACTIVITY_SERVICE) as android.app.ActivityManager)
                 .let { am -> android.app.ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.totalMem / (1024 * 1024) }
             val lowEnd = totalMb < 3072
-            val maxSide = if (lowEnd) 854f else 1280f
+            val maxSide = 1280f //[Maou] HD 720p untuk semua HP; beban dijaga oleh pengatur interval adaptif di bawah
             val scale = minOf(1f, maxSide / maxOf(view.width, view.height))
             val w = (view.width * scale).toInt() and 1.inv()
             val h = (view.height * scale).toInt() and 1.inv()
@@ -90,7 +90,7 @@ object ScreenRecorder {
                 rec.setVideoSource(MediaRecorder.VideoSource.SURFACE)
                 rec.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4)
                 rec.setVideoEncoder(MediaRecorder.VideoEncoder.H264)
-                rec.setVideoEncodingBitRate(if (lowEnd) 2_500_000 else 5_000_000)
+                rec.setVideoEncodingBitRate(if (lowEnd) 3_500_000 else 6_000_000)
                 rec.setVideoFrameRate(30)
                 rec.setVideoSize(w, h)
                 rec.setOutputFile(file.absolutePath)
@@ -116,7 +116,7 @@ object ScreenRecorder {
             thread = t
             handler = Handler(t.looper).also { it.post(frameTick) }
             nextAt = SystemClock.elapsedRealtime()
-            interval = if (lowEnd) 50L else FRAME_INTERVAL_MS
+            interval = FRAME_INTERVAL_MS //[Maou] target 30 fps; turun otomatis hanya jika game ikut berat
             gotFrame = false
             Logger.info(TAG, "Recording game frames ${w}x$h -> ${file.absolutePath}")
             true

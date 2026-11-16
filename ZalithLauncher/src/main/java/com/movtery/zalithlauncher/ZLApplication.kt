@@ -104,6 +104,8 @@ class ZLApplication : Application(), SingletonImageLoader.Factory {
                 val originalJNIDirectory = applicationInfo.nativeLibraryDir
                 applicationInfo.nativeLibraryDir = originalJNIDirectory.take(originalJNIDirectory.lastIndexOf("/")) + "/x86"
             }
+            //[Maou] hemat penyimpanan: bersihkan log lama & cache unduhan sementara di thread latar
+            Thread { com.movtery.zalithlauncher.game.boost.StorageSaver.cleanup() }.apply { priority = Thread.MIN_PRIORITY }.start()
         }.onFailure { launchTh ->
             writeCrashFile(
                 file = PathManager.FILE_CRASH_REPORT,

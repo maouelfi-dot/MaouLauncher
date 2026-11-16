@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "id": "maou_extras",
+  "version": "${version}",
+  "name": "Maou Extras",
+  "description": "Tab list bagus (koin, kill, mati), toko, duduk di tangga, emote, dan kosmetik partikel. Cukup dipasang di host / dunia sendiri (server-side).",
+  "authors": ["Maou Launcher"],
+  "license": "GPL-3.0-or-later",
+  "environment": "*",
+  "entrypoints": { "main": ["id.maou.extras.MaouExtras"] },
+  "depends": { "fabricloader": ">=0.15.11", "minecraft": "1.21.1", "java": ">=21", "fabric-api": "*" }
+}

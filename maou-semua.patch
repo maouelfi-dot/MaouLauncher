@@ -1,0 +1,226 @@
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/Launcher.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/Launcher.kt
+index c2ba551..6d6e752 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/Launcher.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/launch/Launcher.kt
+@@ -352,7 +352,7 @@ abstract class Launcher(
+         // (stutter, then Android kills the game / reboots the phone). Keep the heap near 35% of RAM there.
+         val cappedRam = when {
+             deviceMb <= 0 -> ramAllocation
+-            //[Maou] 42% (dulu 36%): modpack besar (100+ mod) kehabisan heap di ±580MB sehingga GC penuh berulang = kejang-kejang
++            //[Maou 2.10.25] batas naik ke 55% (dulu 42%): heap ±800MB terlalu sempit untuk modpack = GC penuh 2-3 detik saat RAM game > 85%
+             lowRam -> ramAllocation.coerceAtMost(maxOf(512, deviceMb * com.movtery.zalithlauncher.game.diagnose.HeapTuner.percent() / 100)) //[Maou] persentase belajar dari OOM / RAM habis
+             else -> ramAllocation.coerceAtMost(maxOf(1024, deviceMb - 900))
+         }
+@@ -379,23 +379,20 @@ abstract class Launcher(
+         // Low-RAM phones: lightest GC, smaller code cache, fixed young generation (avoids 1-3 s full-GC freezes)
+         if (lowRam && args.none { it.startsWith("-XX:+Use") && it.endsWith("GC") }) {
+             args.add("-XX:+UseSerialGC")
+-            //[Maou] generasi muda lebih kecil (1/5 heap): ruang "old" lebih luas supaya tidak sering GC penuh (jeda 1-3 detik)
+-            args.add("-Xmn${minOf(160, maxOf(96, cappedRam / 5))}M")
+-            args.add("-XX:-UsePerfData")
+-            //[Maou] heap boleh menyusut kembali setelah puncak (mis. saat memuat chunk) supaya RAM dikembalikan ke Android
+-            //dan game tidak dibunuh sistem karena memori habis
+-            if (args.none { it.startsWith("-XX:MaxHeapFreeRatio") }) {
+-                args.add("-XX:MinHeapFreeRatio=10")
+-                args.add("-XX:MaxHeapFreeRatio=30")
++            //[Maou 2.10.25] Profil sama seperti Zalith Launcher 1 (terbukti lancar di HP RAM kecil):
++            //generasi muda tetap 96..256 MB (maks setengah heap awal). Tanpa pembatas thread latar, tanpa JIT C1-saja,
++            //dan heap TIDAK disusutkan lagi di tengah lonjakan (penyusutan + pembesaran ulang memicu GC penuh 2-3 detik).
++            if (args.none { it.startsWith("-Xmn") || it.startsWith("-XX:NewSize") || it.startsWith("-XX:MaxNewSize") || it.startsWith("-XX:NewRatio") }) {
++                args.add("-Xmn${minOf(minOf(256, initialRam / 2), maxOf(96, cappedRam / 3))}M")
+             }
+-            args.add("-XX:CICompilerCount=2")
+-            //[Maou] Prosesor 8 inti lemah (A53): Minecraft membuat 7 thread latar untuk generate chunk dan semuanya berebut CPU/RAM
+-            //dengan thread render & server -> kejang saat memuat chunk. Batasi jadi 2 thread latar (lebih halus, tidak hang).
+-            if (args.none { it.startsWith("-Dmax.bg.threads") }) args.add("-Dmax.bg.threads=2")
++            args.add("-XX:-UsePerfData")
++            if (args.none { it.startsWith("-XX:ReservedCodeCacheSize") }) args.add("-XX:ReservedCodeCacheSize=64m")
+         }
+ 
+         //[Maou] modpack besar di HP RAM kecil: JIT ringan + batas code cache/metaspace
+         runCatching { com.movtery.zalithlauncher.game.boost.ModpackGuard.apply(args, File(chdir()), lowRam) }
++        //[Maou] hemat penyimpanan: buang arsip log Minecraft lama sebelum game jalan (sisa latest.log + 1 crash-report)
++        runCatching { com.movtery.zalithlauncher.game.boost.StorageSaver.cleanGameDir(File(chdir())) }
+ 
+         args.add("-Dorg.lwjgl.openal.libname=${PathManager.DIR_NATIVE_LIB}/libopenal.so")
+ 
+diff --git a/RELEASE_NOTES.md b/RELEASE_NOTES.md
+index 62a7a4d..1deb025 100644
+--- a/RELEASE_NOTES.md
++++ b/RELEASE_NOTES.md
+@@ -1,3 +1,12 @@
++## Maou Launcher 2.10.25 (tidak resmi, fork Zalith Launcher 2)
++
++> Belum diuji langsung di perangkat; mohon laporkan jika ada masalah (sertakan `latest_game.log`).
++
++### Stutter 2-3 detik saat load chunk / RAM game > 85% (HP RAM kecil)
++- Profil JVM HP RAM kecil kini sama seperti Zalith Launcher 1: generasi muda 96-256 MB, tanpa penyusutan heap otomatis, tanpa batas 2 thread latar, tanpa `CICompilerCount=2`.
++- Modpack 40+ mod tidak lagi dipaksa JIT C1-saja (membuat pembuatan chunk lambat); code cache 64 MB.
++- Batas heap otomatis naik: 55% RAM HP (dulu 42%), batas belajar maks 62%. Atur slider RAM game sendiri ke sekitar 900-1000 MB; 512 MB terlalu kecil untuk modpack sehingga GC penuh berulang.
++
+ ## Maou Launcher (rilis berikutnya) - tidak resmi, fork Zalith Launcher 2
+ 
+ ### Layout kontrol mengemudi (baru)
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/boost/ModpackGuard.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/boost/ModpackGuard.kt
+index a67982e..0e97cb4 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/boost/ModpackGuard.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/boost/ModpackGuard.kt
+@@ -20,9 +20,8 @@ object ModpackGuard {
+         val mods = countMods(gameDir)
+         if (!lowRam || mods < 40) return mods
+         fun addIfAbsent(prefix: String, arg: String) { if (args.none { it.startsWith(prefix) }) args.add(arg) }
+-        //Kompilasi JIT paling boros RAM/CPU saat memuat ratusan class mod: pakai compiler ringan (C1) dan batasi code cache
+-        addIfAbsent("-XX:TieredStopAtLevel", "-XX:TieredStopAtLevel=1")
+-        addIfAbsent("-XX:ReservedCodeCacheSize", "-XX:ReservedCodeCacheSize=96m")
++        //[2.10.25] JIT C1-saja DIHAPUS: kode jadi jauh lebih lambat (pembuatan chunk/meshing patah-patah). Code cache 64 MB seperti Zalith 1.
++        addIfAbsent("-XX:ReservedCodeCacheSize", "-XX:ReservedCodeCacheSize=64m")
+         //modpack besar memuat banyak class: jangan biarkan metaspace tumbuh pelan-pelan lewat GC penuh
+         addIfAbsent("-XX:MaxMetaspaceSize", "-XX:MaxMetaspaceSize=384m")
+         addIfAbsent("-Xss", "-Xss1m")
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/diagnose/HeapTuner.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/diagnose/HeapTuner.kt
+index 72db87e..18bfbd9 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/diagnose/HeapTuner.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/diagnose/HeapTuner.kt
+@@ -13,9 +13,9 @@ import com.movtery.zalithlauncher.context.GlobalContext
+ object HeapTuner {
+     private const val PREFS = "maou_heap"
+     private const val KEY = "percent"
+-    const val DEFAULT = 42
++    const val DEFAULT = 55
+     private const val MIN = 30
+-    private const val MAX = 56
++    private const val MAX = 62
+ 
+     private fun prefs() = GlobalContext.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+ 
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ZLApplication.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ZLApplication.kt
+index 31121bd..f233427 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ZLApplication.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/ZLApplication.kt
+@@ -134,7 +134,7 @@ class ZLApplication : Application(), SingletonImageLoader.Factory {
+             .diskCachePolicy(CachePolicy.ENABLED)
+             .diskCache {
+                 DiskCache.Builder()
+-                    .maxSizeBytes(512L * 1024 * 1024) // 512MB
++                    .maxSizeBytes(64L * 1024 * 1024) // [Maou] 64MB (dulu 512MB): cache gambar tidak boleh membengkak
+                     .directory(PathManager.DIR_IMAGE_CACHE.toOkioPath())
+                     .build()
+             }
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/boost/StorageSaver.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/boost/StorageSaver.kt
+index 7ea36f4..656d8dc 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/boost/StorageSaver.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/game/boost/StorageSaver.kt
+@@ -13,10 +13,10 @@ object StorageSaver {
+     fun cleanup() {
+         runCatching {
+             val now = System.currentTimeMillis()
+-            //log launcher/native lebih dari 7 hari
+-            listOf(PathManager.DIR_LAUNCHER_LOGS, PathManager.DIR_NATIVE_LOGS).forEach { dir ->
+-                dir.listFiles()?.filter { it.isFile && now - it.lastModified() > 7 * DAY }?.forEach { it.delete() }
+-            }
++            //[2.10.26] log launcher: sisakan HANYA 1 log terbaru per proses (utama / game / jvm ...), sisanya dihapus
++            keepNewestLogPerProcess(PathManager.DIR_LAUNCHER_LOGS)
++            //log native (crash dump): sisakan 1 file terbaru
++            keepNewestFile(PathManager.DIR_NATIVE_LOGS)
+             //cache unduhan sementara lebih dari 1 hari
+             listOf(
+                 PathManager.DIR_CACHE_GAME_DOWNLOADER,
+@@ -29,6 +29,41 @@ object StorageSaver {
+         }
+     }
+ 
++    /** Nama log launcher: log_<tanggal>_<proses>[.n].log . File lain (mis. launcher_crash.log, latest_game.log) tidak disentuh. */
++    private val LAUNCHER_LOG = Regex("""^log_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}_(.+?)(\.\d+)?\.log$""")
++
++    /** Hapus semua log launcher lama; sisakan 1 yang terbaru untuk tiap proses. Aman dipanggil berkali-kali. */
++    @JvmStatic
++    fun keepNewestLogPerProcess(dir: File) {
++        runCatching {
++            val files = dir.listFiles()?.filter { it.isFile } ?: return
++            files.mapNotNull { f -> LAUNCHER_LOG.matchEntire(f.name)?.let { it.groupValues[1] to f } }
++                .groupBy({ it.first }, { it.second })
++                .values
++                .forEach { group -> group.sortedByDescending { it.lastModified() }.drop(1).forEach { it.delete() } }
++        }
++    }
++
++    /** Sisakan hanya file terbaru di folder ini. */
++    @JvmStatic
++    fun keepNewestFile(dir: File) {
++        runCatching {
++            dir.listFiles()?.filter { it.isFile }?.sortedByDescending { it.lastModified() }?.drop(1)?.forEach { it.delete() }
++        }
++    }
++
++    /**
++     * Dipanggil tepat sebelum game dijalankan: hapus arsip log Minecraft lama (logs/*.log.gz, debug.log, dll)
++     * dan sisakan hanya latest.log + 1 crash-report terbaru. Dunia, mod, dan pengaturan tidak disentuh.
++     */
++    @JvmStatic
++    fun cleanGameDir(gameDir: File) {
++        runCatching {
++            File(gameDir, "logs").listFiles()?.filter { it.isFile && it.name != "latest.log" }?.forEach { it.delete() }
++            keepNewestFile(File(gameDir, "crash-reports"))
++        }
++    }
++
+     private fun purgeOld(dir: File, before: Long) {
+         dir.listFiles()?.forEach { f -> if (f.lastModified() < before) f.deleteRecursively() }
+     }
+diff --git a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/utils/logging/Logger.kt b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/utils/logging/Logger.kt
+index 9a289a3..6b3cee2 100644
+--- a/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/utils/logging/Logger.kt
++++ b/ZalithLauncher/src/main/java/com/movtery/zalithlauncher/utils/logging/Logger.kt
+@@ -134,6 +134,9 @@ object Logger : CoroutineScope {
+             counter++
+         } while (!file.createNewFile())
+ 
++        //[Maou] log baru dibuat -> log lama proses yang sama langsung dihapus (sisa 1 log terbaru)
++        runCatching { com.movtery.zalithlauncher.game.boost.StorageSaver.keepNewestLogPerProcess(PathManager.DIR_LAUNCHER_LOGS) }
++
+         return file
+     }
+ 
+diff --git a/ZalithLauncher/build.gradle.kts b/ZalithLauncher/build.gradle.kts
+index 7f2295c..d07ada4 100644
+--- a/ZalithLauncher/build.gradle.kts
++++ b/ZalithLauncher/build.gradle.kts
+@@ -30,6 +30,8 @@ val defaultKeyPassword = project.findProperty("default_key_password") as? String
+ val defaultCurseForgeApiKey = project.findProperty("curseforge_api_key") as? String
+ 
+ val projectArch: String = System.getProperty("arch", "all")
++//[Maou] Versi Lite: -DjreOnly=21 -> hanya runtime Java 21 yang dikemas (jre-8 / jre-17 / jre-25 dibuang). Boleh "17,21".
++val projectJreOnly: String = System.getProperty("jreOnly", "").trim()
+ 
+ fun getKeyFromLocal(envKey: String, fileName: String? = null, default: String? = null): String {
+     val key = System.getenv(envKey)
+@@ -217,13 +219,19 @@ androidComponents {
+                 afterEvaluate {
+                     val task = tasks.named("merge${variantName}Assets").get() as MergeSourceSetFolders
+                     task.inputs.property("lwjglArch", projectArch)
++                    task.inputs.property("jreOnly", projectJreOnly)
+                     task.doLast {
+                         val assetsDir = task.outputDir.get().asFile
+                         val tag = "JREAssetsCleanup"
+                         logger.lifecycle("[$tag] arch: $projectArch")
+                         val jreList = listOf("jre-8", "jre-17", "jre-21", "jre-25")
++                        val keepJre = projectJreOnly.split(",").map { it.trim() }.filter { it.isNotEmpty() }.map { "jre-$it" }.toSet()
+                         jreList.forEach { jreVersion ->
+                             val runtimeDir = File("$assetsDir/runtimes/$jreVersion")
++                            if (keepJre.isNotEmpty() && jreVersion !in keepJre) {
++                                logger.lifecycle("[$tag] LITE: buang $jreVersion : ${runtimeDir.deleteRecursively()}")
++                                return@forEach
++                            }
+                             logger.lifecycle("[$tag] runtimeDir: ${runtimeDir.absolutePath}")
+                             runtimeDir.listFiles()?.forEach {
+                                 if (projectArch != "all" && it.name != "version" && !it.name.contains("universal") && it.name != "bin-$projectArch.tar.xz") {
+@@ -276,7 +284,8 @@ androidComponents {
+                 }
+ 
+                 (output.getFilter(ABI)?.identifier ?: "all").let { abi ->
+-                    val baseName = "${launcherAPPName.replace(" ", "")}-${if (variant.buildType == "release") launcherVersionName else "Debug-$launcherVersionName"}"
++                    val liteTag = if (projectJreOnly.isNotEmpty()) "-lite" else ""
++                    val baseName = "${launcherAPPName.replace(" ", "")}-${if (variant.buildType == "release") launcherVersionName else "Debug-$launcherVersionName"}$liteTag"
+                     output.outputFileName = if (abi == "all") "$baseName.apk" else "$baseName-$abi.apk"
+                 }
+             }

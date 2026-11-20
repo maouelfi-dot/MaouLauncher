@@ -1,3 +1,12 @@
+## Maou Launcher 2.10.25 (tidak resmi, fork Zalith Launcher 2)
+
+> Belum diuji langsung di perangkat; mohon laporkan jika ada masalah (sertakan `latest_game.log`).
+
+### Stutter 2-3 detik saat load chunk / RAM game > 85% (HP RAM kecil)
+- Profil JVM HP RAM kecil kini sama seperti Zalith Launcher 1: generasi muda 96-256 MB, tanpa penyusutan heap otomatis, tanpa batas 2 thread latar, tanpa `CICompilerCount=2`.
+- Modpack 40+ mod tidak lagi dipaksa JIT C1-saja (membuat pembuatan chunk lambat); code cache 64 MB.
+- Batas heap otomatis naik: 55% RAM HP (dulu 42%), batas belajar maks 62%. Atur slider RAM game sendiri ke sekitar 900-1000 MB; 512 MB terlalu kecil untuk modpack sehingga GC penuh berulang.
+
 ## Maou Launcher (rilis berikutnya) - tidak resmi, fork Zalith Launcher 2
 
 ### Layout kontrol mengemudi (baru)

@@ -20,9 +20,8 @@ object ModpackGuard {
         val mods = countMods(gameDir)
         if (!lowRam || mods < 40) return mods
         fun addIfAbsent(prefix: String, arg: String) { if (args.none { it.startsWith(prefix) }) args.add(arg) }
-        //Kompilasi JIT paling boros RAM/CPU saat memuat ratusan class mod: pakai compiler ringan (C1) dan batasi code cache
-        addIfAbsent("-XX:TieredStopAtLevel", "-XX:TieredStopAtLevel=1")
-        addIfAbsent("-XX:ReservedCodeCacheSize", "-XX:ReservedCodeCacheSize=96m")
+        //[2.10.25] JIT C1-saja DIHAPUS: kode jadi jauh lebih lambat (pembuatan chunk/meshing patah-patah). Code cache 64 MB seperti Zalith 1.
+        addIfAbsent("-XX:ReservedCodeCacheSize", "-XX:ReservedCodeCacheSize=64m")
         //modpack besar memuat banyak class: jangan biarkan metaspace tumbuh pelan-pelan lewat GC penuh
         addIfAbsent("-XX:MaxMetaspaceSize", "-XX:MaxMetaspaceSize=384m")
         addIfAbsent("-Xss", "-Xss1m")

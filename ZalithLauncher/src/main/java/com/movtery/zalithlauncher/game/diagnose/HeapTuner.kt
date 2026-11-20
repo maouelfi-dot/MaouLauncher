@@ -13,9 +13,9 @@ import com.movtery.zalithlauncher.context.GlobalContext
 object HeapTuner {
     private const val PREFS = "maou_heap"
     private const val KEY = "percent"
-    const val DEFAULT = 42
+    const val DEFAULT = 55
     private const val MIN = 30
-    private const val MAX = 56
+    private const val MAX = 62
 
     private fun prefs() = GlobalContext.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 

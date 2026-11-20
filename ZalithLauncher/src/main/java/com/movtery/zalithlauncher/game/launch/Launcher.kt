@@ -352,7 +352,7 @@ abstract class Launcher(
         // (stutter, then Android kills the game / reboots the phone). Keep the heap near 35% of RAM there.
         val cappedRam = when {
             deviceMb <= 0 -> ramAllocation
-            //[Maou] 42% (dulu 36%): modpack besar (100+ mod) kehabisan heap di ±580MB sehingga GC penuh berulang = kejang-kejang
+            //[Maou 2.10.25] batas naik ke 55% (dulu 42%): heap ±800MB terlalu sempit untuk modpack = GC penuh 2-3 detik saat RAM game > 85%
             lowRam -> ramAllocation.coerceAtMost(maxOf(512, deviceMb * com.movtery.zalithlauncher.game.diagnose.HeapTuner.percent() / 100)) //[Maou] persentase belajar dari OOM / RAM habis
             else -> ramAllocation.coerceAtMost(maxOf(1024, deviceMb - 900))
         }
@@ -379,23 +379,20 @@ abstract class Launcher(
         // Low-RAM phones: lightest GC, smaller code cache, fixed young generation (avoids 1-3 s full-GC freezes)
         if (lowRam && args.none { it.startsWith("-XX:+Use") && it.endsWith("GC") }) {
             args.add("-XX:+UseSerialGC")
-            //[Maou] generasi muda lebih kecil (1/5 heap): ruang "old" lebih luas supaya tidak sering GC penuh (jeda 1-3 detik)
-            args.add("-Xmn${minOf(160, maxOf(96, cappedRam / 5))}M")
-            args.add("-XX:-UsePerfData")
-            //[Maou] heap boleh menyusut kembali setelah puncak (mis. saat memuat chunk) supaya RAM dikembalikan ke Android
-            //dan game tidak dibunuh sistem karena memori habis
-            if (args.none { it.startsWith("-XX:MaxHeapFreeRatio") }) {
-                args.add("-XX:MinHeapFreeRatio=10")
-                args.add("-XX:MaxHeapFreeRatio=30")
+            //[Maou 2.10.25] Profil sama seperti Zalith Launcher 1 (terbukti lancar di HP RAM kecil):
+            //generasi muda tetap 96..256 MB (maks setengah heap awal). Tanpa pembatas thread latar, tanpa JIT C1-saja,
+            //dan heap TIDAK disusutkan lagi di tengah lonjakan (penyusutan + pembesaran ulang memicu GC penuh 2-3 detik).
+            if (args.none { it.startsWith("-Xmn") || it.startsWith("-XX:NewSize") || it.startsWith("-XX:MaxNewSize") || it.startsWith("-XX:NewRatio") }) {
+                args.add("-Xmn${minOf(minOf(256, initialRam / 2), maxOf(96, cappedRam / 3))}M")
             }
-            args.add("-XX:CICompilerCount=2")
-            //[Maou] Prosesor 8 inti lemah (A53): Minecraft membuat 7 thread latar untuk generate chunk dan semuanya berebut CPU/RAM
-            //dengan thread render & server -> kejang saat memuat chunk. Batasi jadi 2 thread latar (lebih halus, tidak hang).
-            if (args.none { it.startsWith("-Dmax.bg.threads") }) args.add("-Dmax.bg.threads=2")
+            args.add("-XX:-UsePerfData")
+            if (args.none { it.startsWith("-XX:ReservedCodeCacheSize") }) args.add("-XX:ReservedCodeCacheSize=64m")
         }
 
         //[Maou] modpack besar di HP RAM kecil: JIT ringan + batas code cache/metaspace
         runCatching { com.movtery.zalithlauncher.game.boost.ModpackGuard.apply(args, File(chdir()), lowRam) }
+        //[Maou] hemat penyimpanan: buang arsip log Minecraft lama sebelum game jalan (sisa latest.log + 1 crash-report)
+        runCatching { com.movtery.zalithlauncher.game.boost.StorageSaver.cleanGameDir(File(chdir())) }
 
         args.add("-Dorg.lwjgl.openal.libname=${PathManager.DIR_NATIVE_LIB}/libopenal.so")
 

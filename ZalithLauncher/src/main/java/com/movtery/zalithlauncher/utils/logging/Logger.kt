@@ -134,6 +134,9 @@ object Logger : CoroutineScope {
             counter++
         } while (!file.createNewFile())
 
+        //[Maou] log baru dibuat -> log lama proses yang sama langsung dihapus (sisa 1 log terbaru)
+        runCatching { com.movtery.zalithlauncher.game.boost.StorageSaver.keepNewestLogPerProcess(PathManager.DIR_LAUNCHER_LOGS) }
+
         return file
     }
 

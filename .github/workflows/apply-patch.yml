@@ -1,0 +1,54 @@
+name: Apply patch
+
+# Otomatis menerapkan file *.patch yang kamu upload ke ROOT repo (cabang main),
+# menghapus file patch-nya, lalu langsung build APK rilis (+ versi Lite kalau workflow-nya ada).
+# Catatan: patch yang mengubah isi .github/workflows/ tidak bisa didorong oleh token bawaan.
+on:
+  push:
+    branches: [main]
+    paths: ['*.patch']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Terapkan patch
+        run: |
+          shopt -s nullglob
+          files=(*.patch)
+          if [ ${#files[@]} -eq 0 ]; then echo "Tidak ada file .patch di root repo."; exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          # urut nama file (A-Z) supaya patch lama diterapkan lebih dulu
+          for f in "${files[@]}"; do
+            echo "Menerapkan $f"
+            # cadangan --3way kalau konteks baris bergeser karena patch lain
+            git apply --binary --whitespace=nowarn "$f" || git apply --3way --binary --whitespace=nowarn "$f"
+            git rm -q -f "$f"
+          done
+          git add -A
+          git commit -m "Terapkan patch otomatis"
+          git push origin HEAD:main
+
+      - name: Build APK rilis
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run auto_release.yml --ref main
+
+      - name: Build APK Lite (arm64-v8a, hanya Java 21)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ -f .github/workflows/auto_release_lite.yml ]; then
+            gh workflow run auto_release_lite.yml --ref main
+          else
+            echo "auto_release_lite.yml belum ada di repo -> build Lite dilewati."
+          fi

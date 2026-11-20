@@ -33,6 +33,7 @@ import com.movtery.zalithlauncher.components.Components
 import com.movtery.zalithlauncher.components.InstallableItem
 import com.movtery.zalithlauncher.components.UnpackComponentsTask
 import com.movtery.zalithlauncher.context.GlobalContext
+import com.movtery.zalithlauncher.game.boost.StorageSaver
 import com.movtery.zalithlauncher.game.multirt.Runtime
 import com.movtery.zalithlauncher.game.multirt.RuntimesManager
 import com.movtery.zalithlauncher.game.path.getGameHome
@@ -195,9 +196,12 @@ abstract class Launcher(
             LoggerBridge.appendInfo(arg)
         }
 
-        ZLBridge.setupExitMethod(context.applicationContext)
+                ZLBridge.setupExitMethod(context.applicationContext)
         ZLBridge.initializeGameExitHook()
         ZLBridge.chdir(chdir())
+
+        //[Maou] Bersihin log lama sebelum game jalan, biar nggak numpuk
+        runCatching { StorageSaver.cleanGameDir(File(getMinecraftPath())) }
 
         val exitCode = VMLauncher.launchJVM(args.toTypedArray())
         LoggerBridge.append("Java Exit code: $exitCode")

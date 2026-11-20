@@ -53,7 +53,7 @@ object StorageSaver {
     }
 
     /**
-     * Dipanggil tepat sebelum game dijalankan: hapus arsip log Minecraft lama (logs/*.log.gz, debug.log, dll)
+     * Dipanggil tepat sebelum game dijalankan: hapus arsip log Minecraft lama (folder logs, debug.log, dll)
      * dan sisakan hanya latest.log + 1 crash-report terbaru. Dunia, mod, dan pengaturan tidak disentuh.
      */
     @JvmStatic
